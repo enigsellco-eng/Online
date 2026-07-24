@@ -504,6 +504,67 @@ nav {
   gap: 20px;
 }
 
+.behtarino-layout {
+  display: grid;
+  gap: 20px;
+}
+
+.export-panel {
+  width: 100%;
+}
+
+.export-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 23px;
+}
+
+.export-metrics > div {
+  padding: 16px;
+  border-radius: 13px;
+  background: #f5f9f7;
+}
+
+.export-metrics span,
+.export-metrics strong {
+  display: block;
+}
+
+.export-metrics span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.export-metrics strong {
+  margin-top: 7px;
+  font-size: 21px;
+}
+
+.export-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+  gap: 24px;
+}
+
+.export-controls {
+  padding-left: 24px;
+  border-left: 1px solid var(--line);
+}
+
+.export-actions {
+  flex-wrap: wrap;
+}
+
+.export-history-title {
+  margin-bottom: 13px;
+  font-size: 13px;
+}
+
+.history-list.compact {
+  max-height: 300px;
+}
+
 .panel {
   padding: 25px;
   border-radius: 20px;
@@ -668,8 +729,14 @@ nav {
   }
 
   .source-grid,
-  .two-column {
+  .two-column,
+  .export-grid {
     grid-template-columns: 1fr;
+  }
+
+  .export-controls {
+    padding-left: 0;
+    border-left: 0;
   }
 }
 
@@ -705,7 +772,8 @@ nav {
   }
 
   .metrics-grid,
-  .form-grid {
+  .form-grid,
+  .export-metrics {
     grid-template-columns: 1fr;
   }
 

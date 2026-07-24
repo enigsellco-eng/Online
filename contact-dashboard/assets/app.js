@@ -70,6 +70,27 @@ async function request(path, options = {}) {
   return data;
 }
 
+async function downloadRequest(path, payload) {
+  const response = await fetch(`${API}${path}`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRF-Token": state.csrfToken,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (response.status === 401) {
+    showLogin();
+    throw new Error("نشست شما پایان یافته است.");
+  }
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.detail || "ساخت فایل خروجی ناموفق بود.");
+  }
+  return response.blob();
+}
+
 function showToast(message, isError = false) {
   toast.textContent = message;
   toast.classList.toggle("error", isError);
@@ -225,6 +246,7 @@ async function renderBehtarino() {
     const source = await request("/sources/behtarino");
     const input = source.input || { keyword: "", city: "" };
     content.innerHTML = `
+      <div class="behtarino-layout">
       <div class="two-column">
         <section class="panel">
           <div class="panel-header">
@@ -267,6 +289,63 @@ async function renderBehtarino() {
           <div id="history-list" class="history-list"></div>
         </section>
       </div>
+      <section class="panel export-panel">
+        <div class="panel-header">
+          <div>
+            <h2>خروجی Excel تیم</h2>
+            <p>شماره کانتکت دائمی است؛ دانلود آزمایشی وضعیت تحویل را تغییر نمی‌دهد.</p>
+          </div>
+          <span id="export-new-badge" class="status-pill">در حال بررسی…</span>
+        </div>
+        <div id="export-metrics" class="export-metrics">
+          <div><span>آخرین کانتکت</span><strong>—</strong></div>
+          <div><span>آخرین تحویل این فیلتر</span><strong>—</strong></div>
+          <div><span>شروع پیشنهادی</span><strong>—</strong></div>
+          <div><span>کانتکت جدید</span><strong>—</strong></div>
+        </div>
+        <div class="export-grid">
+          <div class="export-controls">
+            <div class="form-grid">
+              <label>
+                Keyword خروجی
+                <input id="export-keyword" value="${escapeHtml(input.keyword)}"
+                  minlength="2" maxlength="120" required />
+              </label>
+              <label>
+                شهر خروجی
+                <input id="export-city" value="${escapeHtml(input.city)}"
+                  minlength="2" maxlength="80" required />
+              </label>
+              <label>
+                از شماره
+                <input id="export-from" type="number" min="1" value="1" />
+              </label>
+              <label>
+                تا شماره
+                <input id="export-to" type="number" min="1" value="1" />
+              </label>
+            </div>
+            <div class="form-actions export-actions">
+              <button id="apply-export-filter" class="button secondary" type="button">
+                اعمال فیلتر
+              </button>
+              <button id="preview-export" class="button secondary" type="button">
+                دانلود آزمایشی
+              </button>
+              <button id="confirm-export" class="button primary" type="button">
+                دانلود و ثبت تحویل
+              </button>
+            </div>
+          </div>
+          <div>
+            <h3 class="export-history-title">تاریخچه تحویل</h3>
+            <div id="export-history" class="history-list compact">
+              <div class="loading">در حال دریافت تاریخچه…</div>
+            </div>
+          </div>
+        </div>
+      </section>
+      </div>
     `;
     document
       .querySelector("#behtarino-form")
@@ -281,8 +360,124 @@ async function renderBehtarino() {
       });
     });
     loadHistory("behtarino", "runs");
+    document
+      .querySelector("#apply-export-filter")
+      .addEventListener("click", loadBehtarinoExport);
+    document
+      .querySelector("#preview-export")
+      .addEventListener("click", () => downloadBehtarinoExport(false));
+    document
+      .querySelector("#confirm-export")
+      .addEventListener("click", () => downloadBehtarinoExport(true));
+    loadBehtarinoExport();
+    loadBehtarinoExportHistory();
   } catch (error) {
     content.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+async function loadBehtarinoExport() {
+  const keyword = document.querySelector("#export-keyword").value.trim();
+  const city = document.querySelector("#export-city").value.trim();
+  if (keyword.length < 2 || city.length < 2) {
+    showToast("Keyword و شهر خروجی را کامل وارد کنید.", true);
+    return;
+  }
+  const metrics = document.querySelector("#export-metrics");
+  const badge = document.querySelector("#export-new-badge");
+  try {
+    const params = new URLSearchParams({ keyword, city });
+    const summary = await request(
+      `/sources/behtarino/exports/summary?${params.toString()}`,
+    );
+    const values = [
+      summary.latest_contact_no,
+      summary.last_delivered_contact_no,
+      summary.suggested_from_contact_no,
+      summary.new_count,
+    ];
+    metrics.querySelectorAll("strong").forEach((element, index) => {
+      element.textContent = formatNumber(values[index]);
+    });
+    badge.textContent = `${formatNumber(summary.new_count)} جدید`;
+    document.querySelector("#export-from").value =
+      summary.suggested_from_contact_no;
+    document.querySelector("#export-to").value = summary.latest_contact_no;
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+async function loadBehtarinoExportHistory() {
+  const holder = document.querySelector("#export-history");
+  if (!holder) return;
+  try {
+    const data = await request("/sources/behtarino/exports/history");
+    holder.innerHTML = data.items.length
+      ? data.items
+          .map(
+            (item) => `
+              <article class="history-item">
+                <div class="history-item-head">
+                  <strong>#${formatNumber(item.from_contact_no)} تا #${formatNumber(item.to_contact_no)}</strong>
+                  <time>${formatDate(item.created_at)}</time>
+                </div>
+                <p>${formatNumber(item.row_count)} کانتکت تحویل‌شده</p>
+              </article>`,
+          )
+          .join("")
+      : `<div class="empty">هنوز خروجی تحویل‌شده‌ای ثبت نشده است.</div>`;
+  } catch (error) {
+    holder.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+async function downloadBehtarinoExport(confirmDelivery) {
+  const payload = {
+    keyword: document.querySelector("#export-keyword").value.trim(),
+    city: document.querySelector("#export-city").value.trim(),
+    from_contact_no: Number(document.querySelector("#export-from").value),
+    to_contact_no: Number(document.querySelector("#export-to").value),
+    confirm_delivery: confirmDelivery,
+  };
+  if (
+    payload.keyword.length < 2 ||
+    payload.city.length < 2 ||
+    payload.from_contact_no < 1 ||
+    payload.to_contact_no < payload.from_contact_no
+  ) {
+    showToast("فیلتر یا بازه خروجی معتبر نیست.", true);
+    return;
+  }
+  const buttons = document.querySelectorAll(".export-actions button");
+  buttons.forEach((button) => (button.disabled = true));
+  try {
+    const blob = await downloadRequest(
+      "/sources/behtarino/exports/xlsx",
+      payload,
+    );
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download =
+      `behtarino-contacts-${payload.from_contact_no}-to-${payload.to_contact_no}.xlsx`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    showToast(
+      confirmDelivery
+        ? "فایل دانلود و بازه به‌عنوان تحویل‌شده ثبت شد."
+        : "فایل آزمایشی دانلود شد؛ وضعیت تحویل تغییر نکرد.",
+    );
+    if (confirmDelivery) {
+      await loadBehtarinoExport();
+      await loadBehtarinoExportHistory();
+    }
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    buttons.forEach((button) => (button.disabled = false));
   }
 }
 

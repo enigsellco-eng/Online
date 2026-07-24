@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Request, Response
@@ -143,6 +144,14 @@ class BehtarinoInput(BaseModel):
     city: str = Field(min_length=2, max_length=80)
 
 
+class BehtarinoExportInput(BaseModel):
+    keyword: str = Field(min_length=2, max_length=120)
+    city: str = Field(min_length=2, max_length=80)
+    from_contact_no: int = Field(gt=0)
+    to_contact_no: int = Field(gt=0)
+    confirm_delivery: bool = False
+
+
 def client_ip(request: Request) -> str:
     forwarded = request.headers.get("CF-Connecting-IP")
     return forwarded or (request.client.host if request.client else "unknown")
@@ -203,6 +212,26 @@ async def upstream_json(
     if response.status_code >= 400:
         raise HTTPException(502, "پاسخ سرویس منبع معتبر نبود.")
     return response.json()
+
+
+async def upstream_file(
+    method: str,
+    url: str,
+    payload: dict[str, Any],
+) -> httpx.Response:
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.request(method, url, json=payload)
+    except httpx.HTTPError as error:
+        raise HTTPException(503, "سرویس خروجی بهترینو در دسترس نیست.") from error
+    if response.status_code >= 400:
+        detail = "ساخت فایل خروجی ناموفق بود."
+        try:
+            detail = response.json().get("detail", detail)
+        except ValueError:
+            pass
+        raise HTTPException(response.status_code, detail)
+    return response
 
 
 async def source_summary(source_key: str) -> dict[str, Any]:
@@ -500,3 +529,82 @@ async def update_behtarino_input(
             "updated_at": updated.get("updated_at"),
         }
     }
+
+
+@app.get("/api/marketing/sources/behtarino/exports/summary")
+async def behtarino_export_summary(
+    keyword: str,
+    city: str,
+    _: dict[str, Any] = Depends(current_session),
+) -> dict[str, Any]:
+    filters = urlencode(
+        {
+            "query": " ".join(keyword.split()),
+            "city": " ".join(city.split()),
+        }
+    )
+    return await upstream_json(
+        "GET",
+        f"{BEHTARINO_API}/api/sources/behtarino/exports/summary?{filters}",
+    )
+
+
+@app.get("/api/marketing/sources/behtarino/exports/history")
+async def behtarino_export_history(
+    _: dict[str, Any] = Depends(current_session),
+) -> dict[str, Any]:
+    items = await upstream_json(
+        "GET",
+        f"{BEHTARINO_API}/api/sources/behtarino/exports/history?limit=30",
+    )
+    return {"items": items}
+
+
+@app.post("/api/marketing/sources/behtarino/exports/xlsx")
+async def behtarino_export_xlsx(
+    payload: BehtarinoExportInput,
+    request: Request,
+    session: dict[str, Any] = Depends(require_csrf),
+) -> Response:
+    if payload.to_contact_no < payload.from_contact_no:
+        raise HTTPException(400, "بازه شماره کانتکت معتبر نیست.")
+    upstream = await upstream_file(
+        "POST",
+        f"{BEHTARINO_API}/api/sources/behtarino/exports/xlsx",
+        {
+            "query": " ".join(payload.keyword.split()),
+            "city": " ".join(payload.city.split()),
+            "from_contact_no": payload.from_contact_no,
+            "to_contact_no": payload.to_contact_no,
+            "confirm_delivery": payload.confirm_delivery,
+        },
+    )
+    if payload.confirm_delivery:
+        with connect() as db:
+            db.execute(
+                """
+                INSERT INTO audit_log
+                    (user_id,action,source_key,before_json,after_json,remote_ip,created_at)
+                VALUES (?,?,?,?,?,?,?)
+                """,
+                (
+                    session["user_id"],
+                    "deliver_contact_export",
+                    "behtarino",
+                    None,
+                    json.dumps(payload.model_dump(), ensure_ascii=False),
+                    client_ip(request),
+                    iso_now(),
+                ),
+            )
+    return Response(
+        content=upstream.content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": upstream.headers.get(
+                "content-disposition",
+                'attachment; filename="behtarino-contacts.xlsx"',
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
