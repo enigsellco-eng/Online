@@ -283,8 +283,8 @@ async function renderBehtarino() {
             </div>
           </div>
           <div class="tabs">
-            <button class="tab-button active" data-history="runs">اجراها</button>
-            <button class="tab-button" data-history="settings">تغییر ورودی‌ها</button>
+            <button class="tab-button" data-history="runs">اجراها</button>
+            <button class="tab-button active" data-history="settings">تغییر ورودی‌ها</button>
           </div>
           <div id="history-list" class="history-list"></div>
         </section>
@@ -359,7 +359,7 @@ async function renderBehtarino() {
         loadHistory("behtarino", button.dataset.history);
       });
     });
-    loadHistory("behtarino", "runs");
+    loadHistory("behtarino", "settings");
     document
       .querySelector("#apply-export-filter")
       .addEventListener("click", loadBehtarinoExport);
