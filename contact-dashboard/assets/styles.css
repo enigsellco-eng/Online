@@ -211,11 +211,6 @@ input:disabled {
   direction: ltr;
 }
 
-.sidebar,
-.main {
-  direction: rtl;
-}
-
 .sidebar {
   position: sticky;
   top: 0;
@@ -272,7 +267,7 @@ nav {
   border: 0;
   border-radius: 12px;
   color: #acc0b9;
-  text-align: right;
+  text-align: left;
   background: transparent;
 }
 
@@ -283,7 +278,7 @@ nav {
 }
 
 .nav-item.active {
-  box-shadow: inset -3px 0 var(--gold);
+  box-shadow: inset 3px 0 var(--gold);
 }
 
 .nav-icon,
@@ -309,7 +304,7 @@ nav {
 }
 
 .soon {
-  margin-right: auto;
+  margin-left: auto;
   padding: 4px 7px;
   border-radius: 20px;
   color: #91a9a0 !important;
@@ -444,7 +439,7 @@ nav {
 }
 
 .availability {
-  margin-right: auto;
+  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -637,7 +632,7 @@ nav {
   padding: 20px;
   border: 1px dashed #c9d4d0;
   border-radius: 15px;
-  text-align: right;
+  text-align: left;
   background: #f6f9f8;
 }
 
