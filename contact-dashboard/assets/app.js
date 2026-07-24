@@ -133,10 +133,10 @@ function sourceCard(source) {
 async function renderOverview() {
   setHeader(
     "",
-    "نمای کلی منابع",
+    "نمای کلی",
     "",
   );
-  content.innerHTML = `<div class="loading">در حال دریافت آمار منابع…</div>`;
+  content.innerHTML = `<div class="loading">در حال دریافت آمار…</div>`;
   try {
     state.overview = await request("/overview");
     const sources = state.overview.sources;
@@ -145,11 +145,11 @@ async function renderOverview() {
     content.innerHTML = `
       <section class="metrics-grid">
         <article class="metric">
-          <span>کانتکت‌های یونیک منابع</span>
+          <span>کانتکت‌های یونیک</span>
           <strong>${formatNumber(state.overview.total_contacts)}</strong>
         </article>
         <article class="metric">
-          <span>منابع متصل</span>
+          <span>اتصال‌های فعال</span>
           <strong>${formatNumber(available)}</strong>
           <small>از ${formatNumber(sources.length)} منبع</small>
         </article>
