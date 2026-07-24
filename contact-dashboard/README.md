@@ -25,6 +25,8 @@ part of this application.
 
 - `index.html` and `assets/`: static GitHub Pages frontend;
 - `api/`: isolated FastAPI service deployed to Debian on `127.0.0.1:8050`.
+- `api/cloudflared-enigsell-marketing.*`: dedicated tunnel configuration and
+  user service for `api.enigsell.com`.
 
 The API uses separate upstream URLs for each source:
 

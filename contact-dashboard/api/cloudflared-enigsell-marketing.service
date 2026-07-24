@@ -1,0 +1,21 @@
+[Unit]
+Description=Cloudflare Tunnel for Enigsell Marketing Dashboard
+After=network-online.target enigsell-marketing-dashboard-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=HOME=/home/agmentic/enigsell-marketing-cloudflare
+ExecStart=/usr/bin/cloudflared --config /home/agmentic/enigsell-marketing-cloudflare/config.yml tunnel run
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadOnlyPaths=/home/agmentic/enigsell-marketing-cloudflare
+MemoryMax=128M
+CPUQuota=20%
+TasksMax=64
+
+[Install]
+WantedBy=default.target
