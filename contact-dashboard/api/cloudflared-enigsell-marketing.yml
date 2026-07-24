@@ -2,6 +2,8 @@ tunnel: a900a78f-d544-4c86-9a53-c7372be685ad
 credentials-file: /home/agmentic/enigsell-marketing-cloudflare/.cloudflared/a900a78f-d544-4c86-9a53-c7372be685ad.json
 
 ingress:
+  - hostname: source-hub.enigsell.com
+    service: http://127.0.0.1:8050
   - hostname: marketing-gateway.enigsell.com
     service: http://127.0.0.1:8050
   - hostname: api.enigsell.com
