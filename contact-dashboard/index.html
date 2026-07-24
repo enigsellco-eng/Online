@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#081916" />
+    <title>داشبورد مارکتینگ | Enigsell</title>
+    <link rel="stylesheet" href="./assets/styles.css" />
+  </head>
+  <body>
+    <div id="login-view" class="login-shell">
+      <section class="login-card">
+        <div class="brand-mark" aria-hidden="true">E</div>
+        <p class="overline">ENIGSELL · MARKETING</p>
+        <h1>ورود به مرکز منابع</h1>
+        <p class="muted">برای مشاهده آمار و مدیریت ورودی‌های مارکتینگ وارد شوید.</p>
+        <form id="login-form">
+          <label>
+            ایمیل
+            <input id="email" type="email" autocomplete="username" required />
+          </label>
+          <label>
+            رمز عبور
+            <input
+              id="password"
+              type="password"
+              autocomplete="current-password"
+              minlength="8"
+              required
+            />
+          </label>
+          <button class="button primary wide" type="submit">ورود امن</button>
+          <p id="login-error" class="form-error" role="alert"></p>
+        </form>
+        <div class="security-note">
+          <span class="status-dot"></span>
+          ثبت‌نام عمومی غیرفعال است
+        </div>
+      </section>
+    </div>
+
+    <div id="app-view" class="app-shell hidden">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <div class="brand-mark small">E</div>
+          <div>
+            <strong>Enigsell</strong>
+            <span>Marketing Center</span>
+          </div>
+        </div>
+
+        <nav aria-label="منوی اصلی">
+          <p class="nav-label">داشبورد</p>
+          <button class="nav-item active" data-view="overview">
+            <span class="nav-icon">⌂</span>
+            نمای کلی
+          </button>
+          <p class="nav-label">منابع</p>
+          <button class="nav-item" data-view="behtarino">
+            <span class="source-badge behtarino">ب</span>
+            بهترینو
+          </button>
+          <button class="nav-item" data-view="torob">
+            <span class="source-badge torob">ت</span>
+            ترب
+            <span class="soon">به‌زودی</span>
+          </button>
+          <button class="nav-item" data-view="divar">
+            <span class="source-badge divar">د</span>
+            دیوار
+            <span class="soon">به‌زودی</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-user">
+          <div class="avatar" id="user-avatar">م</div>
+          <div>
+            <strong id="user-name">مدیر مارکتینگ</strong>
+            <span id="user-email"></span>
+          </div>
+          <button id="logout-button" class="icon-button" title="خروج">↪</button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="overline" id="page-eyebrow">MARKETING OVERVIEW</p>
+            <h1 id="page-title">نمای کلی منابع</h1>
+            <p id="page-subtitle" class="muted">
+              تصویری خواندنی از عملکرد منابع جمع‌آوری کانتکت
+            </p>
+          </div>
+          <button id="refresh-button" class="button secondary">تازه‌سازی</button>
+        </header>
+
+        <div id="toast" class="toast hidden" role="status"></div>
+        <section id="content" aria-live="polite"></section>
+      </main>
+    </div>
+
+    <script>
+      window.ENIGSELL_MARKETING_API =
+        window.ENIGSELL_MARKETING_API || "https://api.enigsell.com";
+    </script>
+    <script src="./assets/app.js" defer></script>
+  </body>
+</html>

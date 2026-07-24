@@ -1,0 +1,22 @@
+[Unit]
+Description=Enigsell Marketing Dashboard isolated API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/agmentic/enigsell-marketing-dashboard-api
+EnvironmentFile=/home/agmentic/enigsell-marketing-dashboard-api/.env
+ExecStart=/home/agmentic/enigsell-marketing-dashboard-api/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8050
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/agmentic/enigsell-marketing-dashboard-api/data
+MemoryMax=256M
+CPUQuota=40%
+TasksMax=96
+
+[Install]
+WantedBy=default.target
