@@ -24,14 +24,14 @@ function escapeHtml(value) {
 
 function formatNumber(value) {
   if (value === null || value === undefined) return "—";
-  return Number(value).toLocaleString("en-US");
+  return Number(value).toLocaleString("fa-IR");
 }
 
 function formatDate(value) {
-  if (!value) return "Not recorded yet";
+  if (!value) return "هنوز ثبت نشده";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString("en-US", {
+  return date.toLocaleString("fa-IR", {
     dateStyle: "medium",
     timeStyle: "short",
   });
@@ -39,15 +39,15 @@ function formatDate(value) {
 
 function statusLabel(status) {
   const labels = {
-    running: "Running",
-    completed: "Completed",
-    stopped: "Stopped",
-    failed: "Failed",
-    idle: "Ready",
-    paused: "Paused",
-    unavailable: "Unavailable",
+    running: "در حال اجرا",
+    completed: "تکمیل‌شده",
+    stopped: "متوقف‌شده",
+    failed: "ناموفق",
+    idle: "آماده",
+    paused: "متوقف",
+    unavailable: "در دسترس نیست",
   };
-  return labels[status] || "Checking";
+  return labels[status] || "در حال بررسی";
 }
 
 async function request(path, options = {}) {
@@ -63,10 +63,10 @@ async function request(path, options = {}) {
   });
   if (response.status === 401) {
     showLogin();
-    throw new Error("Your session has expired.");
+    throw new Error("نشست شما پایان یافته است.");
   }
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.detail || "Request failed.");
+  if (!response.ok) throw new Error(data.detail || "درخواست ناموفق بود.");
   return data;
 }
 
@@ -88,17 +88,19 @@ function showApp() {
   loginView.classList.add("hidden");
   appView.classList.remove("hidden");
   document.querySelector("#user-name").textContent =
-    state.user.display_name || "Marketing Manager";
+    state.user.display_name || "مدیر مارکتینگ";
   document.querySelector("#user-email").textContent = state.user.email;
   document.querySelector("#user-avatar").textContent = (
     state.user.display_name ||
     state.user.email ||
-    "M"
+    "م"
   ).trim()[0];
 }
 
 function setHeader(eyebrow, title, subtitle) {
-  document.querySelector("#page-eyebrow").textContent = eyebrow;
+  const eyebrowElement = document.querySelector("#page-eyebrow");
+  eyebrowElement.textContent = eyebrow || "";
+  eyebrowElement.classList.toggle("hidden", !eyebrow);
   document.querySelector("#page-title").textContent = title;
   const subtitleElement = document.querySelector("#page-subtitle");
   subtitleElement.textContent = subtitle || "";
@@ -113,15 +115,15 @@ function sourceCard(source) {
         <span class="source-badge ${source.key}">${escapeHtml(source.name[0])}</span>
         <h3>${escapeHtml(source.name)}</h3>
         <span class="availability ${source.available ? "" : "off"}">
-          ${source.available ? "Connected" : "Offline"}
+          ${source.available ? "متصل" : "قطع"}
         </span>
       </div>
       <div class="source-number">${formatNumber(source.contacts)}</div>
-      <div class="source-meta">Unique contacts collected</div>
+      <div class="source-meta">کانتکت یونیک ثبت‌شده</div>
       <div class="source-card-footer">
-        <span>${formatNumber(source.records)} records extracted</span>
+        <span>${formatNumber(source.records)} رکورد استخراج‌شده</span>
         <span class="status-pill ${source.available ? "" : "muted"}">
-          ${disabled ? "Read only" : statusLabel(source.status)}
+          ${disabled ? "غیرفعال" : statusLabel(source.status)}
         </span>
       </div>
     </article>
@@ -130,11 +132,11 @@ function sourceCard(source) {
 
 async function renderOverview() {
   setHeader(
-    "MARKETING OVERVIEW",
-    "Source Overview",
+    "",
+    "نمای کلی منابع",
     "",
   );
-  content.innerHTML = `<div class="loading">Loading source metrics…</div>`;
+  content.innerHTML = `<div class="loading">در حال دریافت آمار منابع…</div>`;
   try {
     state.overview = await request("/overview");
     const sources = state.overview.sources;
@@ -143,24 +145,21 @@ async function renderOverview() {
     content.innerHTML = `
       <section class="metrics-grid">
         <article class="metric">
-          <span>Unique contacts</span>
+          <span>کانتکت‌های یونیک منابع</span>
           <strong>${formatNumber(state.overview.total_contacts)}</strong>
-          <small>Total across independent sources</small>
         </article>
         <article class="metric">
-          <span>Connected sources</span>
+          <span>منابع متصل</span>
           <strong>${formatNumber(available)}</strong>
-          <small>Out of ${formatNumber(sources.length)} sources</small>
+          <small>از ${formatNumber(sources.length)} منبع</small>
         </article>
         <article class="metric">
-          <span>Currently running</span>
+          <span>در حال اجرا</span>
           <strong>${formatNumber(running)}</strong>
-          <small>Live worker status</small>
         </article>
         <article class="metric">
-          <span>Last updated</span>
+          <span>آخرین به‌روزرسانی</span>
           <strong style="font-size:18px">${formatDate(state.overview.updated_at)}</strong>
-          <small>API response time</small>
         </article>
       </section>
       <section class="source-grid">
@@ -181,9 +180,9 @@ function historyItem(item, type) {
           <time>${formatDate(item.started_at || item.created_at)}</time>
         </div>
         <p>
-          Processed: ${formatNumber(item.processed_count)} ·
-          Saved: ${formatNumber(item.saved_count)} ·
-          Errors: ${formatNumber(item.error_count)}
+          پردازش‌شده: ${formatNumber(item.processed_count)} ·
+          ذخیره‌شده: ${formatNumber(item.saved_count)} ·
+          خطا: ${formatNumber(item.error_count)}
         </p>
       </article>
     `;
@@ -191,10 +190,10 @@ function historyItem(item, type) {
   return `
     <article class="history-item">
       <div class="history-item-head">
-        <strong>${escapeHtml(item.query || "No keyword")}</strong>
+        <strong>${escapeHtml(item.query || "بدون Keyword")}</strong>
         <time>${formatDate(item.archived_at || item.updated_at)}</time>
       </div>
-      <p>City: ${escapeHtml(item.city || "—")}</p>
+      <p>شهر: ${escapeHtml(item.city || "—")}</p>
     </article>
   `;
 }
@@ -202,14 +201,14 @@ function historyItem(item, type) {
 async function loadHistory(sourceKey, type) {
   const holder = document.querySelector("#history-list");
   if (!holder) return;
-  holder.innerHTML = `<div class="loading">Loading history…</div>`;
+  holder.innerHTML = `<div class="loading">در حال دریافت تاریخچه…</div>`;
   try {
     const data = await request(
       `/sources/${sourceKey}/${type === "runs" ? "runs" : "settings-history"}`,
     );
     holder.innerHTML = data.items.length
       ? data.items.map((item) => historyItem(item, type)).join("")
-      : `<div class="empty">No history has been recorded.</div>`;
+      : `<div class="empty">تاریخچه‌ای ثبت نشده است.</div>`;
   } catch (error) {
     holder.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
   }
@@ -217,11 +216,11 @@ async function loadHistory(sourceKey, type) {
 
 async function renderBehtarino() {
   setHeader(
-    "SOURCE / BEHTARINO",
-    "Behtarino",
+    "",
+    "بهترینو",
     "",
   );
-  content.innerHTML = `<div class="loading">Loading Behtarino…</div>`;
+  content.innerHTML = `<div class="loading">در حال دریافت اطلاعات بهترینو…</div>`;
   try {
     const source = await request("/sources/behtarino");
     const input = source.input || { keyword: "", city: "" };
@@ -230,7 +229,7 @@ async function renderBehtarino() {
         <section class="panel">
           <div class="panel-header">
             <div>
-              <h2>Extraction Inputs</h2>
+              <h2>ورودی‌های استخراج</h2>
             </div>
             <span class="status-pill">${statusLabel(source.status)}</span>
           </div>
@@ -242,15 +241,15 @@ async function renderBehtarino() {
                   minlength="2" maxlength="120" required />
               </label>
               <label>
-                City
+                شهر
                 <input id="behtarino-city" value="${escapeHtml(input.city)}"
                   minlength="2" maxlength="80" required />
               </label>
             </div>
             <div class="form-actions">
-              <button class="button primary" type="submit">Save inputs</button>
+              <button class="button primary" type="submit">ذخیره ورودی‌ها</button>
               <p class="form-hint">
-                Last updated: ${formatDate(input.updated_at)}
+                آخرین تغییر: ${formatDate(input.updated_at)}
               </p>
             </div>
           </form>
@@ -258,13 +257,12 @@ async function renderBehtarino() {
         <section class="panel">
           <div class="panel-header">
             <div>
-              <h2>History</h2>
+              <h2>تاریخچه</h2>
             </div>
-            <span class="read-only">READ ONLY</span>
           </div>
           <div class="tabs">
-            <button class="tab-button active" data-history="runs">Runs</button>
-            <button class="tab-button" data-history="settings">Input changes</button>
+            <button class="tab-button active" data-history="runs">اجراها</button>
+            <button class="tab-button" data-history="settings">تغییر ورودی‌ها</button>
           </div>
           <div id="history-list" class="history-list"></div>
         </section>
@@ -300,9 +298,9 @@ async function saveBehtarino(event) {
         city: document.querySelector("#behtarino-city").value,
       }),
     });
-    showToast("Behtarino keyword and city were saved.");
+    showToast("Keyword و شهر بهترینو با موفقیت ذخیره شدند.");
     event.currentTarget.querySelector(".form-hint").textContent =
-      `Last updated: ${formatDate(data.input.updated_at)}`;
+      `آخرین تغییر: ${formatDate(data.input.updated_at)}`;
   } catch (error) {
     showToast(error.message, true);
   } finally {
@@ -313,27 +311,27 @@ async function saveBehtarino(event) {
 function renderLocked(sourceKey) {
   const isTorob = sourceKey === "torob";
   setHeader(
-    `SOURCE / ${sourceKey.toUpperCase()}`,
-    isTorob ? "Torob" : "Divar",
+    "",
+    isTorob ? "ترب" : "دیوار",
     "",
   );
   content.innerHTML = `
     <section class="panel locked-panel">
       <div class="locked-content">
         <div class="lock-icon">◇</div>
-        <h2>${isTorob ? "Torob keyword is not available yet" : "Divar inputs are not defined yet"}</h2>
+        <h2>${isTorob ? "Keyword ترب فعلاً غیرفعال است" : "ورودی‌های دیوار هنوز تعریف نشده‌اند"}</h2>
         <p class="muted">
           ${
             isTorob
-              ? "Keyword editing will be enabled in a future phase."
-              : "The input form will be added after the marketing parameters are finalized."
+              ? "ویرایش Keyword در فاز بعدی فعال می‌شود."
+              : "فرم ورودی پس از نهایی‌شدن پارامترهای مارکتینگ اضافه می‌شود."
           }
         </p>
         ${
           isTorob
             ? `<div class="disabled-preview">
-                <label>Keyword<input value="" placeholder="Coming soon" disabled /></label>
-                <button class="button primary" disabled>Save keyword</button>
+                <label>Keyword<input value="" placeholder="به‌زودی" disabled /></label>
+                <button class="button primary" disabled>ذخیره Keyword</button>
               </div>`
             : ""
         }

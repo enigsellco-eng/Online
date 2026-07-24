@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="en" dir="ltr">
+<html lang="fa" dir="rtl">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex,nofollow" />
     <meta name="theme-color" content="#081916" />
-    <title>Marketing Dashboard | Enigsell</title>
+    <title>داشبورد مارکتینگ | Enigsell</title>
     <link rel="stylesheet" href="./assets/styles.css" />
   </head>
   <body>
@@ -13,14 +13,14 @@
       <section class="login-card">
         <div class="brand-mark" aria-hidden="true">E</div>
         <p class="overline">ENIGSELL · MARKETING</p>
-        <h1>Sign in to Source Center</h1>
+        <h1>ورود به مرکز منابع</h1>
         <form id="login-form">
           <label>
-            Email
+            ایمیل
             <input id="email" type="email" autocomplete="username" required />
           </label>
           <label>
-            Password
+            رمز عبور
             <input
               id="password"
               type="password"
@@ -29,12 +29,12 @@
               required
             />
           </label>
-          <button class="button primary wide" type="submit">Secure sign in</button>
+          <button class="button primary wide" type="submit">ورود امن</button>
           <p id="login-error" class="form-error" role="alert"></p>
         </form>
         <div class="security-note">
           <span class="status-dot"></span>
-          Public signup is disabled
+          ثبت‌نام عمومی غیرفعال است
         </div>
       </section>
     </div>
@@ -49,47 +49,47 @@
           </div>
         </div>
 
-        <nav aria-label="Main navigation">
-          <p class="nav-label">DASHBOARD</p>
+        <nav aria-label="منوی اصلی">
+          <p class="nav-label">داشبورد</p>
           <button class="nav-item active" data-view="overview">
             <span class="nav-icon">⌂</span>
-            Overview
+            نمای کلی
           </button>
-          <p class="nav-label">SOURCES</p>
+          <p class="nav-label">منابع</p>
           <button class="nav-item" data-view="behtarino">
-            <span class="source-badge behtarino">B</span>
-            Behtarino
+            <span class="source-badge behtarino">ب</span>
+            بهترینو
           </button>
           <button class="nav-item" data-view="torob">
-            <span class="source-badge torob">T</span>
-            Torob
-            <span class="soon">COMING SOON</span>
+            <span class="source-badge torob">ت</span>
+            ترب
+            <span class="soon">به‌زودی</span>
           </button>
           <button class="nav-item" data-view="divar">
-            <span class="source-badge divar">D</span>
-            Divar
-            <span class="soon">COMING SOON</span>
+            <span class="source-badge divar">د</span>
+            دیوار
+            <span class="soon">به‌زودی</span>
           </button>
         </nav>
 
         <div class="sidebar-user">
-          <div class="avatar" id="user-avatar">M</div>
+          <div class="avatar" id="user-avatar">م</div>
           <div>
-            <strong id="user-name">Marketing Manager</strong>
+            <strong id="user-name">مدیر مارکتینگ</strong>
             <span id="user-email"></span>
           </div>
-          <button id="logout-button" class="icon-button" title="Sign out">↪</button>
+          <button id="logout-button" class="icon-button" title="خروج">↪</button>
         </div>
       </aside>
 
       <main class="main">
         <header class="topbar">
           <div>
-            <p class="overline" id="page-eyebrow">MARKETING OVERVIEW</p>
-            <h1 id="page-title">Source Overview</h1>
+            <p class="overline hidden" id="page-eyebrow"></p>
+            <h1 id="page-title">نمای کلی منابع</h1>
             <p id="page-subtitle" class="muted hidden"></p>
           </div>
-          <button id="refresh-button" class="button secondary">Refresh</button>
+          <button id="refresh-button" class="button secondary">تازه‌سازی</button>
         </header>
 
         <div id="toast" class="toast hidden" role="status"></div>

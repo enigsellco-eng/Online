@@ -222,6 +222,11 @@ input:disabled {
   background: #081916;
 }
 
+.sidebar,
+.main {
+  direction: rtl;
+}
+
 .sidebar-brand {
   display: flex;
   align-items: center;
@@ -267,7 +272,7 @@ nav {
   border: 0;
   border-radius: 12px;
   color: #acc0b9;
-  text-align: left;
+  text-align: right;
   background: transparent;
 }
 
@@ -278,7 +283,7 @@ nav {
 }
 
 .nav-item.active {
-  box-shadow: inset 3px 0 var(--gold);
+  box-shadow: inset -3px 0 var(--gold);
 }
 
 .nav-icon,
@@ -304,7 +309,7 @@ nav {
 }
 
 .soon {
-  margin-left: auto;
+  margin-right: auto;
   padding: 4px 7px;
   border-radius: 20px;
   color: #91a9a0 !important;
@@ -439,7 +444,7 @@ nav {
 }
 
 .availability {
-  margin-left: auto;
+  margin-right: auto;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -552,6 +557,8 @@ nav {
 
 .tabs {
   display: flex;
+  direction: ltr;
+  justify-content: flex-start;
   gap: 8px;
   margin-bottom: 18px;
 }
@@ -563,6 +570,7 @@ nav {
   color: var(--muted);
   background: transparent;
   font-size: 11px;
+  direction: rtl;
 }
 
 .tab-button.active {
@@ -632,7 +640,7 @@ nav {
   padding: 20px;
   border: 1px dashed #c9d4d0;
   border-radius: 15px;
-  text-align: left;
+  text-align: right;
   background: #f6f9f8;
 }
 
