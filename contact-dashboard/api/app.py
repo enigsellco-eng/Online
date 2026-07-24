@@ -153,7 +153,7 @@ def enforce_login_rate_limit(request: Request) -> None:
     now = time.monotonic()
     recent = [stamp for stamp in login_attempts.get(ip, []) if now - stamp < 900]
     if len(recent) >= 10:
-        raise HTTPException(429, "تعداد تلاش‌های ورود بیش از حد مجاز است.")
+        raise HTTPException(429, "Too many sign-in attempts.")
     recent.append(now)
     login_attempts[ip] = recent
 
@@ -162,7 +162,7 @@ def current_session(
     session_token: str | None = Cookie(default=None, alias=COOKIE_NAME),
 ) -> dict[str, Any]:
     if not session_token:
-        raise HTTPException(401, "ورود به حساب لازم است.")
+        raise HTTPException(401, "Authentication required.")
     with connect() as db:
         row = db.execute(
             """
@@ -173,7 +173,7 @@ def current_session(
             (token_hash(session_token), iso_now()),
         ).fetchone()
         if not row or not row["enabled"]:
-            raise HTTPException(401, "نشست معتبر نیست.")
+            raise HTTPException(401, "Invalid session.")
         db.execute(
             "UPDATE sessions SET last_seen_at=? WHERE token_hash=?",
             (iso_now(), token_hash(session_token)),
@@ -186,7 +186,7 @@ def require_csrf(
     csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
 ) -> dict[str, Any]:
     if not csrf_token or not hmac.compare_digest(csrf_token, session["csrf_token"]):
-        raise HTTPException(403, "توکن امنیتی معتبر نیست.")
+        raise HTTPException(403, "Invalid security token.")
     return session
 
 
@@ -199,9 +199,9 @@ async def upstream_json(
         async with httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT) as client:
             response = await client.request(method, url, json=payload)
     except httpx.HTTPError as error:
-        raise HTTPException(503, "سرویس منبع در دسترس نیست.") from error
+        raise HTTPException(503, "Source service is unavailable.") from error
     if response.status_code >= 400:
-        raise HTTPException(502, "پاسخ سرویس منبع معتبر نبود.")
+        raise HTTPException(502, "Invalid response from source service.")
     return response.json()
 
 
@@ -212,7 +212,7 @@ async def source_summary(source_key: str) -> dict[str, Any]:
             runtime = data.get("runtime") or {}
             return {
                 "key": "torob",
-                "name": "ترب",
+                "name": "Torob",
                 "available": True,
                 "configuration_enabled": False,
                 "contacts": (data.get("counts") or {}).get("leads", 0),
@@ -222,10 +222,10 @@ async def source_summary(source_key: str) -> dict[str, Any]:
                 "recent_runs": [],
             }
         except HTTPException:
-            return unavailable_source("torob", "ترب")
+            return unavailable_source("torob", "Torob")
 
     base = BEHTARINO_API if source_key == "behtarino" else DIVAR_API
-    name = "بهترینو" if source_key == "behtarino" else "دیوار"
+    name = "Behtarino" if source_key == "behtarino" else "Divar"
     try:
         data = await upstream_json(
             "GET", f"{base}/api/sources/{source_key}/dashboard"
@@ -297,7 +297,7 @@ def login(payload: LoginInput, request: Request, response: Response) -> dict[str
             "SELECT * FROM users WHERE email=? AND enabled=1", (email,)
         ).fetchone()
         if not user or not verify_password(payload.password, user["password_hash"]):
-            raise HTTPException(401, "ایمیل یا رمز عبور نادرست است.")
+            raise HTTPException(401, "Incorrect email or password.")
 
         raw_token = secrets.token_urlsafe(48)
         csrf_token = secrets.token_urlsafe(32)
@@ -382,7 +382,7 @@ async def source_detail(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
     if source_key not in {"behtarino", "torob", "divar"}:
-        raise HTTPException(404, "منبع پیدا نشد.")
+        raise HTTPException(404, "Source not found.")
     summary = await source_summary(source_key)
     if source_key == "behtarino" and summary["available"]:
         jobs = await upstream_json(
@@ -414,7 +414,7 @@ async def run_history(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
     if source_key not in {"behtarino", "torob", "divar"}:
-        raise HTTPException(404, "منبع پیدا نشد.")
+        raise HTTPException(404, "Source not found.")
     summary = await source_summary(source_key)
     return {"items": summary["recent_runs"]}
 
@@ -424,7 +424,7 @@ async def settings_history(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
     if source_key not in {"behtarino", "torob", "divar"}:
-        raise HTTPException(404, "منبع پیدا نشد.")
+        raise HTTPException(404, "Source not found.")
     if source_key == "torob":
         return {"items": []}
     base = BEHTARINO_API if source_key == "behtarino" else DIVAR_API
@@ -450,7 +450,7 @@ async def update_behtarino_input(
         "GET", f"{BEHTARINO_API}/api/sources/behtarino/jobs"
     )
     if not jobs:
-        raise HTTPException(409, "Job بهترینو هنوز ساخته نشده است.")
+        raise HTTPException(409, "The Behtarino job has not been created.")
     job = jobs[0]
     try:
         settings = json.loads(job.get("settings_json") or "{}")
