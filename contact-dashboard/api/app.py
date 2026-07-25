@@ -31,7 +31,7 @@ ALLOWED_ORIGIN = os.getenv("MARKETING_ALLOWED_ORIGIN", "https://enigsell.com")
 COOKIE_NAME = os.getenv("MARKETING_SESSION_COOKIE", "enigsell_marketing_session")
 SESSION_HOURS = int(os.getenv("MARKETING_SESSION_HOURS", "12"))
 BEHTARINO_API = os.getenv("MARKETING_BEHTARINO_API", "http://127.0.0.1:8031")
-DIVAR_API = os.getenv("MARKETING_DIVAR_API", "http://127.0.0.1:8030")
+DIVAR_API = os.getenv("MARKETING_DIVAR_API", "http://127.0.0.1:8032")
 TOROB_API = os.getenv("MARKETING_TOROB_API", "http://127.0.0.1:8040")
 UPSTREAM_TIMEOUT = float(os.getenv("MARKETING_UPSTREAM_TIMEOUT_SECONDS", "5"))
 
@@ -142,6 +142,12 @@ class LoginInput(BaseModel):
 class BehtarinoInput(BaseModel):
     keyword: str = Field(min_length=2, max_length=120)
     city: str = Field(min_length=2, max_length=80)
+
+
+class DivarInput(BaseModel):
+    keyword: str = Field(min_length=2, max_length=120)
+    city: str = Field(min_length=2, max_length=80)
+    category_slug: str = Field(min_length=2, max_length=120)
 
 
 class BehtarinoExportInput(BaseModel):
@@ -265,7 +271,7 @@ async def source_summary(source_key: str) -> dict[str, Any]:
             "key": source_key,
             "name": name,
             "available": True,
-            "configuration_enabled": source_key == "behtarino",
+            "configuration_enabled": source_key in {"behtarino", "divar"},
             "contacts": counts.get("contacts", 0),
             "records": counts.get("listings", 0),
             "status": runs[0].get("status", "idle") if runs else "idle",
@@ -413,15 +419,21 @@ async def source_detail(
     if source_key not in {"behtarino", "torob", "divar"}:
         raise HTTPException(404, "منبع پیدا نشد.")
     summary = await source_summary(source_key)
-    if source_key == "behtarino" and summary["available"]:
+    if source_key in {"behtarino", "divar"} and summary["available"]:
+        base = BEHTARINO_API if source_key == "behtarino" else DIVAR_API
         jobs = await upstream_json(
-            "GET", f"{BEHTARINO_API}/api/sources/behtarino/jobs"
+            "GET", f"{base}/api/sources/{source_key}/jobs"
         )
         job = jobs[0] if jobs else None
+        try:
+            settings = json.loads(job.get("settings_json") or "{}") if job else {}
+        except json.JSONDecodeError:
+            settings = {}
         summary["input"] = (
             {
                 "keyword": job.get("query") or "",
                 "city": job.get("city") or "",
+                "category_slug": settings.get("category_slug", ""),
                 "updated_at": job.get("updated_at"),
             }
             if job
@@ -526,6 +538,76 @@ async def update_behtarino_input(
         "input": {
             "keyword": updated.get("query") or keyword,
             "city": updated.get("city") or city,
+            "updated_at": updated.get("updated_at"),
+        }
+    }
+
+
+@app.put("/api/marketing/sources/divar/input")
+async def update_divar_input(
+    payload: DivarInput,
+    request: Request,
+    session: dict[str, Any] = Depends(require_csrf),
+) -> dict[str, Any]:
+    keyword = " ".join(payload.keyword.split())
+    city = " ".join(payload.city.split())
+    category_slug = payload.category_slug.strip().strip("/")
+    jobs = await upstream_json("GET", f"{DIVAR_API}/api/sources/divar/jobs")
+    if not jobs:
+        raise HTTPException(409, "Job دیوار هنوز ساخته نشده است.")
+    job = jobs[0]
+    try:
+        settings = json.loads(job.get("settings_json") or "{}")
+    except json.JSONDecodeError:
+        settings = {}
+
+    before = {
+        "keyword": job.get("query") or "",
+        "city": job.get("city") or "",
+        "category_slug": settings.get("category_slug", ""),
+    }
+    settings["category_slug"] = category_slug
+    updated = await upstream_json(
+        "PUT",
+        f"{DIVAR_API}/api/sources/divar/jobs/{job['id']}",
+        {
+            "name": job["name"],
+            "city": city,
+            "category": job.get("category"),
+            "subcategory": category_slug,
+            "query": keyword,
+            "enabled": bool(job.get("enabled", True)),
+            "schedule": job.get("schedule"),
+            "result_limit": job["result_limit"],
+            "destination_sheet": job["destination_sheet"],
+            "settings": settings,
+        },
+    )
+    after = {
+        "keyword": keyword,
+        "city": city,
+        "category_slug": category_slug,
+    }
+    with connect() as db:
+        db.execute(
+            """
+            INSERT INTO audit_log
+                (user_id,action,source_key,before_json,after_json,remote_ip,created_at)
+            VALUES (?,?,?,?,?,?,?)
+            """,
+            (
+                session["user_id"],
+                "update_marketing_input",
+                "divar",
+                json.dumps(before, ensure_ascii=False),
+                json.dumps(after, ensure_ascii=False),
+                client_ip(request),
+                iso_now(),
+            ),
+        )
+    return {
+        "input": {
+            **after,
             "updated_at": updated.get("updated_at"),
         }
     }
