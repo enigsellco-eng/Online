@@ -208,13 +208,23 @@ function historyItem(item, type) {
       </article>
     `;
   }
+  let settings = {};
+  try {
+    settings = JSON.parse(item.settings_json || "{}");
+  } catch {
+    settings = {};
+  }
+  const category = settings.category_slug || item.subcategory || "";
   return `
     <article class="history-item">
       <div class="history-item-head">
         <strong>${escapeHtml(item.query || "بدون Keyword")}</strong>
         <time>${formatDate(item.archived_at || item.updated_at)}</time>
       </div>
-      <p>شهر: ${escapeHtml(item.city || "—")}</p>
+      <p>
+        شهر: ${escapeHtml(item.city || "—")}
+        ${category ? ` · مسیر دسته‌بندی: ${escapeHtml(category)}` : ""}
+      </p>
     </article>
   `;
 }
@@ -503,33 +513,122 @@ async function saveBehtarino(event) {
   }
 }
 
+async function renderDivar() {
+  setHeader("", "دیوار", "");
+  content.innerHTML = `<div class="loading">در حال دریافت اطلاعات دیوار…</div>`;
+  try {
+    const source = await request("/sources/divar");
+    const input = source.input || {
+      keyword: "",
+      city: "",
+      category_slug: "",
+    };
+    content.innerHTML = `
+      <div class="two-column">
+        <section class="panel">
+          <div class="panel-header">
+            <div><h2>ورودی‌های استخراج</h2></div>
+            <span class="status-pill">${statusLabel(source.status)}</span>
+          </div>
+          <form id="divar-form">
+            <div class="form-grid">
+              <label>
+                Keyword
+                <input id="divar-keyword" value="${escapeHtml(input.keyword)}"
+                  minlength="2" maxlength="120" required />
+              </label>
+              <label>
+                شهر
+                <input id="divar-city" value="${escapeHtml(input.city)}"
+                  minlength="2" maxlength="80" required />
+              </label>
+              <label>
+                مسیر دسته‌بندی
+                <input id="divar-category-slug"
+                  value="${escapeHtml(input.category_slug)}"
+                  minlength="2" maxlength="120" required />
+              </label>
+            </div>
+            <div class="form-actions">
+              <button class="button primary" type="submit">ذخیره ورودی‌ها</button>
+              <p class="form-hint">
+                آخرین تغییر: ${formatDate(input.updated_at)}
+              </p>
+            </div>
+          </form>
+        </section>
+        <section class="panel">
+          <div class="panel-header">
+            <div><h2>تاریخچه</h2></div>
+          </div>
+          <div class="tabs">
+            <button class="tab-button" data-history="runs">اجراها</button>
+            <button class="tab-button active" data-history="settings">تغییر ورودی‌ها</button>
+          </div>
+          <div id="history-list" class="history-list"></div>
+        </section>
+      </div>
+    `;
+    document
+      .querySelector("#divar-form")
+      .addEventListener("submit", saveDivar);
+    document.querySelectorAll("[data-history]").forEach((button) => {
+      button.addEventListener("click", () => {
+        document
+          .querySelectorAll("[data-history]")
+          .forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        loadHistory("divar", button.dataset.history);
+      });
+    });
+    loadHistory("divar", "settings");
+  } catch (error) {
+    content.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+async function saveDivar(event) {
+  event.preventDefault();
+  const button = event.currentTarget.querySelector("button[type='submit']");
+  button.disabled = true;
+  try {
+    const data = await request("/sources/divar/input", {
+      method: "PUT",
+      body: JSON.stringify({
+        keyword: document.querySelector("#divar-keyword").value,
+        city: document.querySelector("#divar-city").value,
+        category_slug: document.querySelector("#divar-category-slug").value,
+      }),
+    });
+    showToast("ورودی‌های دیوار با موفقیت ذخیره شدند.");
+    event.currentTarget.querySelector(".form-hint").textContent =
+      `آخرین تغییر: ${formatDate(data.input.updated_at)}`;
+    loadHistory("divar", "settings");
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function renderLocked(sourceKey) {
-  const isTorob = sourceKey === "torob";
   setHeader(
     "",
-    isTorob ? "ترب" : "دیوار",
+    "ترب",
     "",
   );
   content.innerHTML = `
     <section class="panel locked-panel">
       <div class="locked-content">
         <div class="lock-icon">◇</div>
-        <h2>${isTorob ? "Keyword ترب فعلاً غیرفعال است" : "ورودی‌های دیوار هنوز تعریف نشده‌اند"}</h2>
+        <h2>Keyword ترب فعلاً غیرفعال است</h2>
         <p class="muted">
-          ${
-            isTorob
-              ? "ویرایش Keyword در فاز بعدی فعال می‌شود."
-              : "فرم ورودی پس از نهایی‌شدن پارامترهای مارکتینگ اضافه می‌شود."
-          }
+          ویرایش Keyword در فاز بعدی فعال می‌شود.
         </p>
-        ${
-          isTorob
-            ? `<div class="disabled-preview">
-                <label>Keyword<input value="" placeholder="به‌زودی" disabled /></label>
-                <button class="button primary" disabled>ذخیره Keyword</button>
-              </div>`
-            : ""
-        }
+        <div class="disabled-preview">
+          <label>Keyword<input value="" placeholder="به‌زودی" disabled /></label>
+          <button class="button primary" disabled>ذخیره Keyword</button>
+        </div>
       </div>
     </section>
   `;
@@ -542,6 +641,7 @@ async function switchView(view) {
   });
   if (view === "overview") return renderOverview();
   if (view === "behtarino") return renderBehtarino();
+  if (view === "divar") return renderDivar();
   renderLocked(view);
 }
 
