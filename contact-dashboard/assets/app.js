@@ -208,23 +208,13 @@ function historyItem(item, type) {
       </article>
     `;
   }
-  let settings = {};
-  try {
-    settings = JSON.parse(item.settings_json || "{}");
-  } catch {
-    settings = {};
-  }
-  const category = settings.category_slug || item.subcategory || "";
   return `
     <article class="history-item">
       <div class="history-item-head">
         <strong>${escapeHtml(item.query || "بدون Keyword")}</strong>
         <time>${formatDate(item.archived_at || item.updated_at)}</time>
       </div>
-      <p>
-        شهر: ${escapeHtml(item.city || "—")}
-        ${category ? ` · مسیر دسته‌بندی: ${escapeHtml(category)}` : ""}
-      </p>
+      <p>شهر: ${escapeHtml(item.city || "—")}</p>
     </article>
   `;
 }
@@ -521,70 +511,110 @@ async function renderDivar() {
     const input = source.input || {
       keyword: "",
       city: "",
-      category_slug: "",
+      category: "",
+      subcategory: "",
     };
     content.innerHTML = `
-      <div class="two-column">
-        <section class="panel">
-          <div class="panel-header">
-            <div><h2>ورودی‌های استخراج</h2></div>
-            <span class="status-pill">${statusLabel(source.status)}</span>
-          </div>
-          <form id="divar-form">
-            <div class="form-grid">
-              <label>
-                Keyword
-                <input id="divar-keyword" value="${escapeHtml(input.keyword)}"
-                  minlength="2" maxlength="120" required />
-              </label>
-              <label>
-                شهر
-                <input id="divar-city" value="${escapeHtml(input.city)}"
-                  minlength="2" maxlength="80" required />
-              </label>
-              <label>
-                مسیر دسته‌بندی
-                <input id="divar-category-slug"
-                  value="${escapeHtml(input.category_slug)}"
-                  minlength="2" maxlength="120" required />
-              </label>
+      <div class="behtarino-layout">
+        <div class="two-column">
+          <section class="panel">
+            <div class="panel-header">
+              <div><h2>ورودی‌های استخراج دیوار</h2></div>
+              <span class="status-pill">${statusLabel(source.status)}</span>
             </div>
-            <div class="form-actions">
-              <button class="button primary" type="submit">ذخیره ورودی‌ها</button>
-              <p class="form-hint">
-                آخرین تغییر: ${formatDate(input.updated_at)}
-              </p>
+            <form id="divar-form">
+              <div class="form-grid">
+                ${divarFields("divar", input)}
+              </div>
+              <div class="form-actions">
+                <button class="button primary" type="submit">ذخیره ورودی‌ها</button>
+                <p class="form-hint">آخرین تغییر: ${formatDate(input.updated_at)}</p>
+              </div>
+            </form>
+          </section>
+          <section class="panel">
+            <div class="panel-header"><div><h2>تاریخچه</h2></div></div>
+            <div class="tabs">
+              <button class="tab-button" data-history="runs">اجراها</button>
+              <button class="tab-button active" data-history="settings">تغییر ورودی‌ها</button>
             </div>
-          </form>
-        </section>
-        <section class="panel">
+            <div id="history-list" class="history-list"></div>
+          </section>
+        </div>
+        <section class="panel export-panel">
           <div class="panel-header">
-            <div><h2>تاریخچه</h2></div>
+            <div>
+              <h2>خروجی Excel مستقل دیوار</h2>
+              <p>شماره کانتکت دائمی است و با اضافه‌شدن داده‌های جدید تغییر نمی‌کند.</p>
+            </div>
+            <span id="divar-export-new-badge" class="status-pill">در حال بررسی…</span>
           </div>
-          <div class="tabs">
-            <button class="tab-button" data-history="runs">اجراها</button>
-            <button class="tab-button active" data-history="settings">تغییر ورودی‌ها</button>
+          <div id="divar-export-metrics" class="export-metrics">
+            <div><span>آخرین کانتکت</span><strong>—</strong></div>
+            <div><span>آخرین تحویل این فیلتر</span><strong>—</strong></div>
+            <div><span>شروع پیشنهادی</span><strong>—</strong></div>
+            <div><span>کانتکت جدید</span><strong>—</strong></div>
           </div>
-          <div id="history-list" class="history-list"></div>
+          <div class="export-grid">
+            <div class="export-controls">
+              <div class="form-grid">
+                ${divarFields("divar-export", input)}
+                <label>از شماره<input id="divar-export-from" type="number" min="1" value="1" /></label>
+                <label>تا شماره<input id="divar-export-to" type="number" min="1" value="1" /></label>
+              </div>
+              <div class="form-actions export-actions">
+                <button id="apply-divar-export-filter" class="button secondary" type="button">اعمال فیلتر</button>
+                <button id="preview-divar-export" class="button secondary" type="button">دانلود آزمایشی</button>
+                <button id="confirm-divar-export" class="button primary" type="button">دانلود و ثبت تحویل</button>
+              </div>
+            </div>
+            <div>
+              <h3 class="export-history-title">تاریخچه تحویل دیوار</h3>
+              <div id="divar-export-history" class="history-list compact">
+                <div class="loading">در حال دریافت تاریخچه…</div>
+              </div>
+            </div>
+          </div>
         </section>
-      </div>
-    `;
-    document
-      .querySelector("#divar-form")
-      .addEventListener("submit", saveDivar);
+      </div>`;
+    document.querySelector("#divar-form").addEventListener("submit", saveDivar);
     document.querySelectorAll("[data-history]").forEach((button) => {
       button.addEventListener("click", () => {
-        document
-          .querySelectorAll("[data-history]")
-          .forEach((item) => item.classList.remove("active"));
+        document.querySelectorAll("[data-history]").forEach((item) =>
+          item.classList.remove("active"));
         button.classList.add("active");
         loadHistory("divar", button.dataset.history);
       });
     });
+    document.querySelector("#apply-divar-export-filter")
+      .addEventListener("click", loadDivarExport);
+    document.querySelector("#preview-divar-export")
+      .addEventListener("click", () => downloadDivarExport(false));
+    document.querySelector("#confirm-divar-export")
+      .addEventListener("click", () => downloadDivarExport(true));
     loadHistory("divar", "settings");
+    loadDivarExport();
+    loadDivarExportHistory();
   } catch (error) {
     content.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
   }
+}
+
+function divarFields(prefix, input) {
+  return `
+    <label>Keyword<input id="${prefix}-keyword" value="${escapeHtml(input.keyword)}" minlength="2" maxlength="120" required /></label>
+    <label>شهر<input id="${prefix}-city" value="${escapeHtml(input.city)}" minlength="2" maxlength="80" required /></label>
+    <label>دسته‌بندی<input id="${prefix}-category" value="${escapeHtml(input.category)}" minlength="2" maxlength="120" required /></label>
+    <label>زیردسته<input id="${prefix}-subcategory" value="${escapeHtml(input.subcategory)}" minlength="2" maxlength="160" required /></label>`;
+}
+
+function divarValues(prefix) {
+  return {
+    keyword: document.querySelector(`#${prefix}-keyword`).value.trim(),
+    city: document.querySelector(`#${prefix}-city`).value.trim(),
+    category: document.querySelector(`#${prefix}-category`).value.trim(),
+    subcategory: document.querySelector(`#${prefix}-subcategory`).value.trim(),
+  };
 }
 
 async function saveDivar(event) {
@@ -594,16 +624,11 @@ async function saveDivar(event) {
   try {
     const data = await request("/sources/divar/input", {
       method: "PUT",
-      body: JSON.stringify({
-        keyword: document.querySelector("#divar-keyword").value,
-        city: document.querySelector("#divar-city").value,
-        category_slug: document.querySelector("#divar-category-slug").value,
-      }),
+      body: JSON.stringify(divarValues("divar")),
     });
     showToast("ورودی‌های دیوار با موفقیت ذخیره شدند.");
     event.currentTarget.querySelector(".form-hint").textContent =
       `آخرین تغییر: ${formatDate(data.input.updated_at)}`;
-    loadHistory("divar", "settings");
   } catch (error) {
     showToast(error.message, true);
   } finally {
@@ -611,24 +636,124 @@ async function saveDivar(event) {
   }
 }
 
+async function loadDivarExport() {
+  const filters = divarValues("divar-export");
+  if (Object.values(filters).some((value) => value.length < 2)) {
+    showToast("چهار فیلتر خروجی دیوار را کامل وارد کنید.", true);
+    return;
+  }
+  try {
+    const summary = await request(
+      `/sources/divar/exports/summary?${new URLSearchParams(filters).toString()}`,
+    );
+    const values = [
+      summary.latest_contact_no,
+      summary.last_delivered_contact_no,
+      summary.suggested_from_contact_no,
+      summary.new_count,
+    ];
+    document.querySelectorAll("#divar-export-metrics strong")
+      .forEach((element, index) => {
+        element.textContent = formatNumber(values[index]);
+      });
+    document.querySelector("#divar-export-new-badge").textContent =
+      `${formatNumber(summary.new_count)} جدید`;
+    document.querySelector("#divar-export-from").value =
+      summary.suggested_from_contact_no;
+    document.querySelector("#divar-export-to").value = summary.latest_contact_no;
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+async function loadDivarExportHistory() {
+  const holder = document.querySelector("#divar-export-history");
+  try {
+    const data = await request("/sources/divar/exports/history");
+    holder.innerHTML = data.items.length
+      ? data.items.map((item) => `
+          <article class="history-item">
+            <div class="history-item-head">
+              <strong>#${formatNumber(item.from_contact_no)} تا #${formatNumber(item.to_contact_no)}</strong>
+              <time>${formatDate(item.created_at)}</time>
+            </div>
+            <p>${formatNumber(item.row_count)} کانتکت تحویل‌شده</p>
+          </article>`).join("")
+      : `<div class="empty">هنوز خروجی تحویل‌شده‌ای ثبت نشده است.</div>`;
+  } catch (error) {
+    holder.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+async function downloadDivarExport(confirmDelivery) {
+  const payload = {
+    ...divarValues("divar-export"),
+    from_contact_no: Number(document.querySelector("#divar-export-from").value),
+    to_contact_no: Number(document.querySelector("#divar-export-to").value),
+    confirm_delivery: confirmDelivery,
+  };
+  if (
+    Object.values(divarValues("divar-export")).some((value) => value.length < 2) ||
+    payload.from_contact_no < 1 ||
+    payload.to_contact_no < payload.from_contact_no
+  ) {
+    showToast("فیلتر یا بازه خروجی دیوار معتبر نیست.", true);
+    return;
+  }
+  const buttons = document.querySelectorAll(".export-actions button");
+  buttons.forEach((button) => (button.disabled = true));
+  try {
+    const blob = await downloadRequest("/sources/divar/exports/xlsx", payload);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download =
+      `divar-contacts-${payload.from_contact_no}-to-${payload.to_contact_no}.xlsx`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    showToast(confirmDelivery
+      ? "فایل دیوار دانلود و بازه به‌عنوان تحویل‌شده ثبت شد."
+      : "فایل آزمایشی دیوار دانلود شد؛ وضعیت تحویل تغییر نکرد.");
+    if (confirmDelivery) {
+      await loadDivarExport();
+      await loadDivarExportHistory();
+    }
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    buttons.forEach((button) => (button.disabled = false));
+  }
+}
+
 function renderLocked(sourceKey) {
+  const isTorob = sourceKey === "torob";
   setHeader(
     "",
-    "ترب",
+    isTorob ? "ترب" : "دیوار",
     "",
   );
   content.innerHTML = `
     <section class="panel locked-panel">
       <div class="locked-content">
         <div class="lock-icon">◇</div>
-        <h2>Keyword ترب فعلاً غیرفعال است</h2>
+        <h2>${isTorob ? "Keyword ترب فعلاً غیرفعال است" : "ورودی‌های دیوار هنوز تعریف نشده‌اند"}</h2>
         <p class="muted">
-          ویرایش Keyword در فاز بعدی فعال می‌شود.
+          ${
+            isTorob
+              ? "ویرایش Keyword در فاز بعدی فعال می‌شود."
+              : "فرم ورودی پس از نهایی‌شدن پارامترهای مارکتینگ اضافه می‌شود."
+          }
         </p>
-        <div class="disabled-preview">
-          <label>Keyword<input value="" placeholder="به‌زودی" disabled /></label>
-          <button class="button primary" disabled>ذخیره Keyword</button>
-        </div>
+        ${
+          isTorob
+            ? `<div class="disabled-preview">
+                <label>Keyword<input value="" placeholder="به‌زودی" disabled /></label>
+                <button class="button primary" disabled>ذخیره Keyword</button>
+              </div>`
+            : ""
+        }
       </div>
     </section>
   `;
