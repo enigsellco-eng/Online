@@ -496,7 +496,8 @@ async function downloadBehtarinoExport(confirmDelivery) {
 
 async function saveBehtarino(event) {
   event.preventDefault();
-  const button = event.currentTarget.querySelector("button[type='submit']");
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type='submit']");
   button.disabled = true;
   try {
     const data = await request("/sources/behtarino/input", {
@@ -507,7 +508,7 @@ async function saveBehtarino(event) {
       }),
     });
     showToast("Keyword و شهر بهترینو با موفقیت ذخیره شدند.");
-    event.currentTarget.querySelector(".form-hint").textContent =
+    form.querySelector(".form-hint").textContent =
       `آخرین تغییر: ${formatDate(data.input.updated_at)}`;
   } catch (error) {
     showToast(error.message, true);
@@ -591,7 +592,8 @@ async function renderTakhfifan() {
 
 async function saveTakhfifan(event) {
   event.preventDefault();
-  const button = event.currentTarget.querySelector("button[type='submit']");
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type='submit']");
   button.disabled = true;
   try {
     const data = await request("/sources/takhfifan/input", {
@@ -603,7 +605,7 @@ async function saveTakhfifan(event) {
       }),
     });
     showToast("ورودی‌های تخفیفان با موفقیت ذخیره شدند.");
-    event.currentTarget.querySelector(".form-hint").textContent =
+    form.querySelector(".form-hint").textContent =
       `آخرین تغییر: ${formatDate(data.input.updated_at)}`;
     loadHistory("takhfifan", "settings");
   } catch (error) {
@@ -729,7 +731,8 @@ function divarValues(prefix) {
 
 async function saveDivar(event) {
   event.preventDefault();
-  const button = event.currentTarget.querySelector("button[type='submit']");
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type='submit']");
   button.disabled = true;
   try {
     const data = await request("/sources/divar/input", {
@@ -737,7 +740,7 @@ async function saveDivar(event) {
       body: JSON.stringify(divarValues("divar")),
     });
     showToast("ورودی‌های دیوار با موفقیت ذخیره شدند.");
-    event.currentTarget.querySelector(".form-hint").textContent =
+    form.querySelector(".form-hint").textContent =
       `آخرین تغییر: ${formatDate(data.input.updated_at)}`;
     const saved = data.input || divarValues("divar");
     ["keyword", "city", "category", "subcategory"].forEach((field) => {
