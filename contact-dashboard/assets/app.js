@@ -994,10 +994,7 @@ async function renderFoodkeys() {
         </div>
         <section class="panel export-panel">
           <div class="panel-header">
-            <div>
-              <h2>خروجی Excel مستقل فودکیز</h2>
-              <p>هر کسب‌وکار یک کانتکت است؛ شماره‌های متعدد آن در یک ردیف Excel قرار می‌گیرند.</p>
-            </div>
+            <div><h2>خروجی Excel مستقل فودکیز</h2></div>
             <span id="foodkeys-export-new-badge" class="status-pill">
               در حال بررسی…
             </span>
