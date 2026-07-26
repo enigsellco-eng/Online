@@ -24,6 +24,7 @@ function escapeHtml(value) {
 
 function formatNumber(value) {
   if (value === null || value === undefined) return "—";
+  if (Number(value) === 0) return "0";
   return Number(value).toLocaleString("fa-IR");
 }
 
@@ -629,6 +630,12 @@ async function saveDivar(event) {
     showToast("ورودی‌های دیوار با موفقیت ذخیره شدند.");
     event.currentTarget.querySelector(".form-hint").textContent =
       `آخرین تغییر: ${formatDate(data.input.updated_at)}`;
+    const saved = data.input || divarValues("divar");
+    ["keyword", "city", "category", "subcategory"].forEach((field) => {
+      const exportInput = document.querySelector(`#divar-export-${field}`);
+      if (exportInput) exportInput.value = saved[field] || "";
+    });
+    await loadDivarExport();
   } catch (error) {
     showToast(error.message, true);
   } finally {
