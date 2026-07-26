@@ -214,7 +214,8 @@ function historyItem(item, type) {
   } catch {
     settings = {};
   }
-  const category = settings.category_slug || item.subcategory || "";
+  const category = item.category || settings.category_slug || "";
+  const subcategory = item.subcategory || "";
   return `
     <article class="history-item">
       <div class="history-item-head">
@@ -223,7 +224,8 @@ function historyItem(item, type) {
       </div>
       <p>
         شهر: ${escapeHtml(item.city || "—")}
-        ${category ? ` · مسیر دسته‌بندی: ${escapeHtml(category)}` : ""}
+        ${category ? ` · دسته‌بندی: ${escapeHtml(category)}` : ""}
+        ${subcategory ? ` · زیردسته: ${escapeHtml(subcategory)}` : ""}
       </p>
     </article>
   `;
@@ -513,6 +515,103 @@ async function saveBehtarino(event) {
   }
 }
 
+async function renderTakhfifan() {
+  setHeader("", "تخفیفان", "");
+  content.innerHTML = `<div class="loading">در حال دریافت اطلاعات تخفیفان…</div>`;
+  try {
+    const source = await request("/sources/takhfifan");
+    const input = source.input || {
+      keyword: "",
+      city: "",
+      category: "",
+    };
+    content.innerHTML = `
+      <div class="two-column">
+        <section class="panel">
+          <div class="panel-header">
+            <div><h2>ورودی‌های استخراج</h2></div>
+            <span class="status-pill">${statusLabel(source.status)}</span>
+          </div>
+          <form id="takhfifan-form">
+            <div class="form-grid">
+              <label>
+                Keyword
+                <input id="takhfifan-keyword" value="${escapeHtml(input.keyword)}"
+                  minlength="2" maxlength="120" required />
+              </label>
+              <label>
+                شهر
+                <input id="takhfifan-city" value="${escapeHtml(input.city)}"
+                  minlength="2" maxlength="80" required />
+              </label>
+              <label>
+                دسته‌بندی
+                <input id="takhfifan-category" value="${escapeHtml(input.category)}"
+                  minlength="2" maxlength="120" required />
+              </label>
+            </div>
+            <div class="form-actions">
+              <button class="button primary" type="submit">ذخیره ورودی‌ها</button>
+              <p class="form-hint">
+                آخرین تغییر: ${formatDate(input.updated_at)}
+              </p>
+            </div>
+          </form>
+        </section>
+        <section class="panel">
+          <div class="panel-header">
+            <div><h2>تاریخچه</h2></div>
+          </div>
+          <div class="tabs">
+            <button class="tab-button" data-history="runs">اجراها</button>
+            <button class="tab-button active" data-history="settings">تغییر ورودی‌ها</button>
+          </div>
+          <div id="history-list" class="history-list"></div>
+        </section>
+      </div>
+    `;
+    document
+      .querySelector("#takhfifan-form")
+      .addEventListener("submit", saveTakhfifan);
+    document.querySelectorAll("[data-history]").forEach((button) => {
+      button.addEventListener("click", () => {
+        document
+          .querySelectorAll("[data-history]")
+          .forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        loadHistory("takhfifan", button.dataset.history);
+      });
+    });
+    loadHistory("takhfifan", "settings");
+  } catch (error) {
+    content.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+async function saveTakhfifan(event) {
+  event.preventDefault();
+  const button = event.currentTarget.querySelector("button[type='submit']");
+  button.disabled = true;
+  try {
+    const data = await request("/sources/takhfifan/input", {
+      method: "PUT",
+      body: JSON.stringify({
+        keyword: document.querySelector("#takhfifan-keyword").value,
+        city: document.querySelector("#takhfifan-city").value,
+        category: document.querySelector("#takhfifan-category").value,
+      }),
+    });
+    showToast("ورودی‌های تخفیفان با موفقیت ذخیره شدند.");
+    event.currentTarget.querySelector(".form-hint").textContent =
+      `آخرین تغییر: ${formatDate(data.input.updated_at)}`;
+    loadHistory("takhfifan", "settings");
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function renderDivar() {
   setHeader("", "دیوار", "");
   content.innerHTML = `<div class="loading">در حال دریافت اطلاعات دیوار…</div>`;
@@ -641,6 +740,7 @@ async function switchView(view) {
   });
   if (view === "overview") return renderOverview();
   if (view === "behtarino") return renderBehtarino();
+  if (view === "takhfifan") return renderTakhfifan();
   if (view === "divar") return renderDivar();
   renderLocked(view);
 }

@@ -31,6 +31,7 @@ ALLOWED_ORIGIN = os.getenv("MARKETING_ALLOWED_ORIGIN", "https://enigsell.com")
 COOKIE_NAME = os.getenv("MARKETING_SESSION_COOKIE", "enigsell_marketing_session")
 SESSION_HOURS = int(os.getenv("MARKETING_SESSION_HOURS", "12"))
 BEHTARINO_API = os.getenv("MARKETING_BEHTARINO_API", "http://127.0.0.1:8031")
+TAKHFIFAN_API = os.getenv("MARKETING_TAKHFIFAN_API", "http://127.0.0.1:8051")
 DIVAR_API = os.getenv("MARKETING_DIVAR_API", "http://127.0.0.1:8032")
 TOROB_API = os.getenv("MARKETING_TOROB_API", "http://127.0.0.1:8040")
 UPSTREAM_TIMEOUT = float(os.getenv("MARKETING_UPSTREAM_TIMEOUT_SECONDS", "5"))
@@ -142,6 +143,12 @@ class LoginInput(BaseModel):
 class BehtarinoInput(BaseModel):
     keyword: str = Field(min_length=2, max_length=120)
     city: str = Field(min_length=2, max_length=80)
+
+
+class TakhfifanInput(BaseModel):
+    keyword: str = Field(min_length=2, max_length=120)
+    city: str = Field(min_length=2, max_length=80)
+    category: str = Field(min_length=2, max_length=120)
 
 
 class DivarInput(BaseModel):
@@ -259,8 +266,18 @@ async def source_summary(source_key: str) -> dict[str, Any]:
         except HTTPException:
             return unavailable_source("torob", "ترب")
 
-    base = BEHTARINO_API if source_key == "behtarino" else DIVAR_API
-    name = "بهترینو" if source_key == "behtarino" else "دیوار"
+    bases = {
+        "behtarino": BEHTARINO_API,
+        "takhfifan": TAKHFIFAN_API,
+        "divar": DIVAR_API,
+    }
+    names = {
+        "behtarino": "بهترینو",
+        "takhfifan": "تخفیفان",
+        "divar": "دیوار",
+    }
+    base = bases[source_key]
+    name = names[source_key]
     try:
         data = await upstream_json(
             "GET", f"{base}/api/sources/{source_key}/dashboard"
@@ -271,7 +288,8 @@ async def source_summary(source_key: str) -> dict[str, Any]:
             "key": source_key,
             "name": name,
             "available": True,
-            "configuration_enabled": source_key in {"behtarino", "divar"},
+            "configuration_enabled": source_key
+            in {"behtarino", "takhfifan", "divar"},
             "contacts": counts.get("contacts", 0),
             "records": counts.get("listings", 0),
             "status": runs[0].get("status", "idle") if runs else "idle",
@@ -399,6 +417,7 @@ async def overview(_: dict[str, Any] = Depends(current_session)) -> dict[str, An
     sources = list(
         await asyncio.gather(
             source_summary("behtarino"),
+            source_summary("takhfifan"),
             source_summary("torob"),
             source_summary("divar"),
         )
@@ -416,11 +435,15 @@ async def overview(_: dict[str, Any] = Depends(current_session)) -> dict[str, An
 async def source_detail(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
-    if source_key not in {"behtarino", "torob", "divar"}:
+    if source_key not in {"behtarino", "takhfifan", "torob", "divar"}:
         raise HTTPException(404, "منبع پیدا نشد.")
     summary = await source_summary(source_key)
-    if source_key in {"behtarino", "divar"} and summary["available"]:
-        base = BEHTARINO_API if source_key == "behtarino" else DIVAR_API
+    if source_key in {"behtarino", "takhfifan", "divar"} and summary["available"]:
+        base = {
+            "behtarino": BEHTARINO_API,
+            "takhfifan": TAKHFIFAN_API,
+            "divar": DIVAR_API,
+        }[source_key]
         jobs = await upstream_json(
             "GET", f"{base}/api/sources/{source_key}/jobs"
         )
@@ -433,6 +456,7 @@ async def source_detail(
             {
                 "keyword": job.get("query") or "",
                 "city": job.get("city") or "",
+                "category": job.get("category") or "",
                 "category_slug": settings.get("category_slug", ""),
                 "updated_at": job.get("updated_at"),
             }
@@ -454,7 +478,7 @@ async def source_detail(
 async def run_history(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
-    if source_key not in {"behtarino", "torob", "divar"}:
+    if source_key not in {"behtarino", "takhfifan", "torob", "divar"}:
         raise HTTPException(404, "منبع پیدا نشد.")
     summary = await source_summary(source_key)
     return {"items": summary["recent_runs"]}
@@ -464,11 +488,15 @@ async def run_history(
 async def settings_history(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
-    if source_key not in {"behtarino", "torob", "divar"}:
+    if source_key not in {"behtarino", "takhfifan", "torob", "divar"}:
         raise HTTPException(404, "منبع پیدا نشد.")
     if source_key == "torob":
         return {"items": []}
-    base = BEHTARINO_API if source_key == "behtarino" else DIVAR_API
+    base = {
+        "behtarino": BEHTARINO_API,
+        "takhfifan": TAKHFIFAN_API,
+        "divar": DIVAR_API,
+    }[source_key]
     jobs = await upstream_json("GET", f"{base}/api/sources/{source_key}/jobs")
     if not jobs:
         return {"items": []}
@@ -608,6 +636,74 @@ async def update_divar_input(
     return {
         "input": {
             **after,
+            "updated_at": updated.get("updated_at"),
+        }
+    }
+
+
+@app.put("/api/marketing/sources/takhfifan/input")
+async def update_takhfifan_input(
+    payload: TakhfifanInput,
+    request: Request,
+    session: dict[str, Any] = Depends(require_csrf),
+) -> dict[str, Any]:
+    values = {
+        key: " ".join(value.split())
+        for key, value in payload.model_dump().items()
+    }
+    jobs = await upstream_json(
+        "GET", f"{TAKHFIFAN_API}/api/sources/takhfifan/jobs"
+    )
+    if not jobs:
+        raise HTTPException(409, "Job تخفیفان هنوز ساخته نشده است.")
+    job = jobs[0]
+    try:
+        settings = json.loads(job.get("settings_json") or "{}")
+    except json.JSONDecodeError:
+        settings = {}
+    before = {
+        "keyword": job.get("query") or "",
+        "city": job.get("city") or "",
+        "category": job.get("category") or "",
+    }
+    updated = await upstream_json(
+        "PUT",
+        f"{TAKHFIFAN_API}/api/sources/takhfifan/jobs/{job['id']}",
+        {
+            "name": job["name"],
+            "city": values["city"],
+            "category": values["category"],
+            "subcategory": job.get("subcategory"),
+            "query": values["keyword"],
+            "enabled": bool(job.get("enabled", True)),
+            "schedule": job.get("schedule"),
+            "result_limit": job["result_limit"],
+            "destination_sheet": job["destination_sheet"],
+            "settings": settings,
+        },
+    )
+    with connect() as db:
+        db.execute(
+            """
+            INSERT INTO audit_log
+                (user_id,action,source_key,before_json,after_json,remote_ip,created_at)
+            VALUES (?,?,?,?,?,?,?)
+            """,
+            (
+                session["user_id"],
+                "update_marketing_input",
+                "takhfifan",
+                json.dumps(before, ensure_ascii=False),
+                json.dumps(values, ensure_ascii=False),
+                client_ip(request),
+                iso_now(),
+            ),
+        )
+    return {
+        "input": {
+            "keyword": updated.get("query") or values["keyword"],
+            "city": updated.get("city") or values["city"],
+            "category": updated.get("category") or values["category"],
             "updated_at": updated.get("updated_at"),
         }
     }
