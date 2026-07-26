@@ -852,6 +852,41 @@ async function renderSenfyab() {
             <div id="history-list" class="history-list"></div>
           </section>
         </div>
+        <section class="panel export-panel">
+          <div class="panel-header">
+            <div>
+              <h2>خروجی Excel مستقل صنفیاب</h2>
+              <p>شماره کانتکت دائمی است و خروجی صنفیاب با هیچ منبع دیگری داده مشترک ندارد.</p>
+            </div>
+            <span id="senfyab-export-new-badge" class="status-pill">در حال بررسی…</span>
+          </div>
+          <div id="senfyab-export-metrics" class="export-metrics">
+            <div><span>آخرین کانتکت</span><strong>—</strong></div>
+            <div><span>آخرین تحویل این فیلتر</span><strong>—</strong></div>
+            <div><span>شروع پیشنهادی</span><strong>—</strong></div>
+            <div><span>کانتکت جدید</span><strong>—</strong></div>
+          </div>
+          <div class="export-grid">
+            <div class="export-controls">
+              <div class="form-grid">
+                ${senfyabFields("senfyab-export", input)}
+                <label>از شماره<input id="senfyab-export-from" type="number" min="1" value="1" /></label>
+                <label>تا شماره<input id="senfyab-export-to" type="number" min="1" value="1" /></label>
+              </div>
+              <div class="form-actions export-actions">
+                <button id="apply-senfyab-export-filter" class="button secondary" type="button">اعمال فیلتر</button>
+                <button id="preview-senfyab-export" class="button secondary" type="button">دانلود آزمایشی</button>
+                <button id="confirm-senfyab-export" class="button primary" type="button">دانلود و ثبت تحویل</button>
+              </div>
+            </div>
+            <div>
+              <h3 class="export-history-title">تاریخچه تحویل صنفیاب</h3>
+              <div id="senfyab-export-history" class="history-list compact">
+                <div class="loading">در حال دریافت تاریخچه…</div>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>`;
     document
       .querySelector("#senfyab-form")
@@ -865,6 +900,14 @@ async function renderSenfyab() {
       });
     });
     loadHistory("senfyab", "settings");
+    document.querySelector("#apply-senfyab-export-filter")
+      .addEventListener("click", loadSenfyabExport);
+    document.querySelector("#preview-senfyab-export")
+      .addEventListener("click", () => downloadSenfyabExport(false));
+    document.querySelector("#confirm-senfyab-export")
+      .addEventListener("click", () => downloadSenfyabExport(true));
+    loadSenfyabExport();
+    loadSenfyabExportHistory();
   } catch (error) {
     content.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
   }
@@ -888,11 +931,129 @@ async function saveSenfyab(event) {
     showToast("ورودی‌های صنفیاب با موفقیت ذخیره شدند.");
     form.querySelector(".form-hint").textContent =
       `آخرین تغییر: ${formatDate(data.input.updated_at)}`;
+    const saved = data.input || senfyabValues("senfyab");
+    ["name", "category", "subcategory"].forEach((field) => {
+      const exportInput = document.querySelector(`#senfyab-export-${field}`);
+      if (exportInput) exportInput.value = saved[field] || "";
+    });
+    await loadSenfyabExport();
     await loadHistory("senfyab", "settings");
   } catch (error) {
     showToast(error.message, true);
   } finally {
     button.disabled = false;
+  }
+}
+
+function senfyabFields(prefix, input) {
+  return `
+    <label>نام جستجو<input id="${prefix}-name" value="${escapeHtml(input.name)}" minlength="1" maxlength="200" required /></label>
+    <label>دسته‌بندی<input id="${prefix}-category" value="${escapeHtml(input.category)}" minlength="1" maxlength="120" required /></label>
+    <label>زیردسته<input id="${prefix}-subcategory" value="${escapeHtml(input.subcategory)}" minlength="1" maxlength="160" required /></label>`;
+}
+
+function senfyabValues(prefix) {
+  return {
+    name: document.querySelector(`#${prefix}-name`).value.trim(),
+    category: document.querySelector(`#${prefix}-category`).value.trim(),
+    subcategory: document.querySelector(`#${prefix}-subcategory`).value.trim(),
+  };
+}
+
+async function loadSenfyabExport() {
+  const filters = senfyabValues("senfyab-export");
+  if (Object.values(filters).some((value) => value.length < 1)) {
+    showToast("فیلترهای خروجی صنفیاب را کامل وارد کنید.", true);
+    return;
+  }
+  try {
+    const summary = await request(
+      `/sources/senfyab/exports/summary?${new URLSearchParams(filters).toString()}`,
+    );
+    const values = [
+      summary.latest_contact_no,
+      summary.last_delivered_contact_no,
+      summary.suggested_from_contact_no,
+      summary.new_count,
+    ];
+    document.querySelectorAll("#senfyab-export-metrics strong")
+      .forEach((element, index) => {
+        element.textContent = formatNumber(values[index]);
+      });
+    document.querySelector("#senfyab-export-new-badge").textContent =
+      `${formatNumber(summary.new_count)} جدید`;
+    document.querySelector("#senfyab-export-from").value =
+      summary.suggested_from_contact_no;
+    document.querySelector("#senfyab-export-to").value =
+      summary.latest_contact_no;
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+async function loadSenfyabExportHistory() {
+  const holder = document.querySelector("#senfyab-export-history");
+  try {
+    const data = await request("/sources/senfyab/exports/history");
+    holder.innerHTML = data.items.length
+      ? data.items.map((item) => `
+          <article class="history-item">
+            <div class="history-item-head">
+              <strong>#${formatNumber(item.from_contact_no)} تا #${formatNumber(item.to_contact_no)}</strong>
+              <time>${formatDate(item.created_at)}</time>
+            </div>
+            <p>${formatNumber(item.row_count)} کانتکت تحویل‌شده</p>
+          </article>`).join("")
+      : `<div class="empty">هنوز خروجی تحویل‌شده‌ای ثبت نشده است.</div>`;
+  } catch (error) {
+    holder.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+async function downloadSenfyabExport(confirmDelivery) {
+  const filters = senfyabValues("senfyab-export");
+  const payload = {
+    ...filters,
+    from_contact_no: Number(
+      document.querySelector("#senfyab-export-from").value,
+    ),
+    to_contact_no: Number(
+      document.querySelector("#senfyab-export-to").value,
+    ),
+    confirm_delivery: confirmDelivery,
+  };
+  if (
+    Object.values(filters).some((value) => value.length < 1) ||
+    payload.from_contact_no < 1 ||
+    payload.to_contact_no < payload.from_contact_no
+  ) {
+    showToast("فیلتر یا بازه خروجی صنفیاب معتبر نیست.", true);
+    return;
+  }
+  const buttons = document.querySelectorAll(".export-actions button");
+  buttons.forEach((button) => (button.disabled = true));
+  try {
+    const blob = await downloadRequest("/sources/senfyab/exports/xlsx", payload);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download =
+      `senfyab-contacts-${payload.from_contact_no}-to-${payload.to_contact_no}.xlsx`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    showToast(confirmDelivery
+      ? "فایل صنفیاب دانلود و بازه به‌عنوان تحویل‌شده ثبت شد."
+      : "فایل آزمایشی صنفیاب دانلود شد؛ وضعیت تحویل تغییر نکرد.");
+    if (confirmDelivery) {
+      await loadSenfyabExport();
+      await loadSenfyabExportHistory();
+    }
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    buttons.forEach((button) => (button.disabled = false));
   }
 }
 

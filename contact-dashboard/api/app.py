@@ -185,6 +185,12 @@ class SenfyabInput(BaseModel):
     subcategory: str = Field(min_length=1, max_length=160)
 
 
+class SenfyabExportInput(SenfyabInput):
+    from_contact_no: int = Field(gt=0)
+    to_contact_no: int = Field(gt=0)
+    confirm_delivery: bool = False
+
+
 def client_ip(request: Request) -> str:
     forwarded = request.headers.get("CF-Connecting-IP")
     return forwarded or (request.client.host if request.client else "unknown")
@@ -888,6 +894,99 @@ async def behtarino_export_xlsx(
             "Content-Disposition": upstream.headers.get(
                 "content-disposition",
                 'attachment; filename="behtarino-contacts.xlsx"',
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+def senfyab_filters(values: dict[str, Any]) -> dict[str, str]:
+    return {
+        "name": " ".join(values["name"].split()),
+        "category": " ".join(values["category"].split()),
+        "subcategory": " ".join(values["subcategory"].split()),
+    }
+
+
+@app.get("/api/marketing/sources/senfyab/exports/summary")
+async def senfyab_export_summary(
+    name: str,
+    category: str,
+    subcategory: str,
+    _: dict[str, Any] = Depends(current_session),
+) -> dict[str, Any]:
+    filters = urlencode(
+        senfyab_filters(
+            {
+                "name": name,
+                "category": category,
+                "subcategory": subcategory,
+            }
+        )
+    )
+    return await upstream_json(
+        "GET",
+        f"{SENFYAB_API}/api/sources/senfyab/exports/summary?{filters}",
+    )
+
+
+@app.get("/api/marketing/sources/senfyab/exports/history")
+async def senfyab_export_history(
+    _: dict[str, Any] = Depends(current_session),
+) -> dict[str, Any]:
+    items = await upstream_json(
+        "GET",
+        f"{SENFYAB_API}/api/sources/senfyab/exports/history?limit=30",
+    )
+    return {"items": items}
+
+
+@app.post("/api/marketing/sources/senfyab/exports/xlsx")
+async def senfyab_export_xlsx(
+    payload: SenfyabExportInput,
+    request: Request,
+    session: dict[str, Any] = Depends(require_csrf),
+) -> Response:
+    if payload.to_contact_no < payload.from_contact_no:
+        raise HTTPException(400, "بازه شماره کانتکت معتبر نیست.")
+    upstream = await upstream_file(
+        "POST",
+        f"{SENFYAB_API}/api/sources/senfyab/exports/xlsx",
+        {
+            **senfyab_filters(payload.model_dump()),
+            "from_contact_no": payload.from_contact_no,
+            "to_contact_no": payload.to_contact_no,
+            "confirm_delivery": payload.confirm_delivery,
+        },
+    )
+    if payload.confirm_delivery:
+        with connect() as db:
+            db.execute(
+                """
+                INSERT INTO audit_log
+                    (user_id,action,source_key,before_json,after_json,remote_ip,created_at)
+                VALUES (?,?,?,?,?,?,?)
+                """,
+                (
+                    session["user_id"],
+                    "deliver_contact_export",
+                    "senfyab",
+                    None,
+                    json.dumps(payload.model_dump(), ensure_ascii=False),
+                    client_ip(request),
+                    iso_now(),
+                ),
+            )
+    return Response(
+        content=upstream.content,
+        media_type=(
+            "application/vnd.openxmlformats-officedocument."
+            "spreadsheetml.sheet"
+        ),
+        headers={
+            "Content-Disposition": upstream.headers.get(
+                "content-disposition",
+                'attachment; filename="senfyab-contacts.xlsx"',
             ),
             "Cache-Control": "no-store",
         },
