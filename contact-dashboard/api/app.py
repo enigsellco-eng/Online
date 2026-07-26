@@ -151,15 +151,22 @@ class TakhfifanInput(BaseModel):
     category: str = Field(min_length=2, max_length=120)
 
 
-class DivarInput(BaseModel):
-    keyword: str = Field(min_length=2, max_length=120)
-    city: str = Field(min_length=2, max_length=80)
-    category_slug: str = Field(min_length=2, max_length=120)
-
-
 class BehtarinoExportInput(BaseModel):
     keyword: str = Field(min_length=2, max_length=120)
     city: str = Field(min_length=2, max_length=80)
+    from_contact_no: int = Field(gt=0)
+    to_contact_no: int = Field(gt=0)
+    confirm_delivery: bool = False
+
+
+class DivarInput(BaseModel):
+    keyword: str = Field(min_length=2, max_length=120)
+    city: str = Field(min_length=2, max_length=80)
+    category: str = Field(min_length=2, max_length=120)
+    subcategory: str = Field(min_length=2, max_length=160)
+
+
+class DivarExportInput(DivarInput):
     from_contact_no: int = Field(gt=0)
     to_contact_no: int = Field(gt=0)
     confirm_delivery: bool = False
@@ -448,16 +455,12 @@ async def source_detail(
             "GET", f"{base}/api/sources/{source_key}/jobs"
         )
         job = jobs[0] if jobs else None
-        try:
-            settings = json.loads(job.get("settings_json") or "{}") if job else {}
-        except json.JSONDecodeError:
-            settings = {}
         summary["input"] = (
             {
                 "keyword": job.get("query") or "",
                 "city": job.get("city") or "",
                 "category": job.get("category") or "",
-                "category_slug": settings.get("category_slug", ""),
+                "subcategory": job.get("subcategory") or "",
                 "updated_at": job.get("updated_at"),
             }
             if job
@@ -577,9 +580,10 @@ async def update_divar_input(
     request: Request,
     session: dict[str, Any] = Depends(require_csrf),
 ) -> dict[str, Any]:
-    keyword = " ".join(payload.keyword.split())
-    city = " ".join(payload.city.split())
-    category_slug = payload.category_slug.strip().strip("/")
+    values = {
+        key: " ".join(value.split())
+        for key, value in payload.model_dump().items()
+    }
     jobs = await upstream_json("GET", f"{DIVAR_API}/api/sources/divar/jobs")
     if not jobs:
         raise HTTPException(409, "Job دیوار هنوز ساخته نشده است.")
@@ -588,22 +592,21 @@ async def update_divar_input(
         settings = json.loads(job.get("settings_json") or "{}")
     except json.JSONDecodeError:
         settings = {}
-
     before = {
         "keyword": job.get("query") or "",
         "city": job.get("city") or "",
-        "category_slug": settings.get("category_slug", ""),
+        "category": job.get("category") or "",
+        "subcategory": job.get("subcategory") or "",
     }
-    settings["category_slug"] = category_slug
     updated = await upstream_json(
         "PUT",
         f"{DIVAR_API}/api/sources/divar/jobs/{job['id']}",
         {
             "name": job["name"],
-            "city": city,
-            "category": job.get("category"),
-            "subcategory": category_slug,
-            "query": keyword,
+            "city": values["city"],
+            "category": values["category"],
+            "subcategory": values["subcategory"],
+            "query": values["keyword"],
             "enabled": bool(job.get("enabled", True)),
             "schedule": job.get("schedule"),
             "result_limit": job["result_limit"],
@@ -611,11 +614,6 @@ async def update_divar_input(
             "settings": settings,
         },
     )
-    after = {
-        "keyword": keyword,
-        "city": city,
-        "category_slug": category_slug,
-    }
     with connect() as db:
         db.execute(
             """
@@ -628,14 +626,17 @@ async def update_divar_input(
                 "update_marketing_input",
                 "divar",
                 json.dumps(before, ensure_ascii=False),
-                json.dumps(after, ensure_ascii=False),
+                json.dumps(values, ensure_ascii=False),
                 client_ip(request),
                 iso_now(),
             ),
         )
     return {
         "input": {
-            **after,
+            "keyword": updated.get("query") or values["keyword"],
+            "city": updated.get("city") or values["city"],
+            "category": updated.get("category") or values["category"],
+            "subcategory": updated.get("subcategory") or values["subcategory"],
             "updated_at": updated.get("updated_at"),
         }
     }
@@ -782,6 +783,96 @@ async def behtarino_export_xlsx(
             "Content-Disposition": upstream.headers.get(
                 "content-disposition",
                 'attachment; filename="behtarino-contacts.xlsx"',
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+def divar_filters(values: dict[str, Any]) -> dict[str, str]:
+    return {
+        "query": " ".join(values["keyword"].split()),
+        "city": " ".join(values["city"].split()),
+        "category": " ".join(values["category"].split()),
+        "subcategory": " ".join(values["subcategory"].split()),
+    }
+
+
+@app.get("/api/marketing/sources/divar/exports/summary")
+async def divar_export_summary(
+    keyword: str,
+    city: str,
+    category: str,
+    subcategory: str,
+    _: dict[str, Any] = Depends(current_session),
+) -> dict[str, Any]:
+    filters = urlencode(
+        divar_filters(
+            {
+                "keyword": keyword,
+                "city": city,
+                "category": category,
+                "subcategory": subcategory,
+            }
+        )
+    )
+    return await upstream_json(
+        "GET", f"{DIVAR_API}/api/sources/divar/exports/summary?{filters}"
+    )
+
+
+@app.get("/api/marketing/sources/divar/exports/history")
+async def divar_export_history(
+    _: dict[str, Any] = Depends(current_session),
+) -> dict[str, Any]:
+    items = await upstream_json(
+        "GET", f"{DIVAR_API}/api/sources/divar/exports/history?limit=30"
+    )
+    return {"items": items}
+
+
+@app.post("/api/marketing/sources/divar/exports/xlsx")
+async def divar_export_xlsx(
+    payload: DivarExportInput,
+    request: Request,
+    session: dict[str, Any] = Depends(require_csrf),
+) -> Response:
+    if payload.to_contact_no < payload.from_contact_no:
+        raise HTTPException(400, "بازه شماره کانتکت معتبر نیست.")
+    upstream = await upstream_file(
+        "POST",
+        f"{DIVAR_API}/api/sources/divar/exports/xlsx",
+        {
+            **divar_filters(payload.model_dump()),
+            "from_contact_no": payload.from_contact_no,
+            "to_contact_no": payload.to_contact_no,
+            "confirm_delivery": payload.confirm_delivery,
+        },
+    )
+    if payload.confirm_delivery:
+        with connect() as db:
+            db.execute(
+                """
+                INSERT INTO audit_log
+                    (user_id,action,source_key,before_json,after_json,remote_ip,created_at)
+                VALUES (?,?,?,?,?,?,?)
+                """,
+                (
+                    session["user_id"],
+                    "deliver_contact_export",
+                    "divar",
+                    None,
+                    json.dumps(payload.model_dump(), ensure_ascii=False),
+                    client_ip(request),
+                    iso_now(),
+                ),
+            )
+    return Response(
+        content=upstream.content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": upstream.headers.get(
+                "content-disposition", 'attachment; filename="divar-contacts.xlsx"'
             ),
             "Cache-Control": "no-store",
         },
