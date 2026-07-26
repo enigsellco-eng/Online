@@ -859,10 +859,7 @@ async function renderSenfyab() {
         </div>
         <section class="panel export-panel">
           <div class="panel-header">
-            <div>
-              <h2>خروجی Excel مستقل صنفیاب</h2>
-              <p>هر کسب‌وکار یک کانتکت است؛ شماره‌های متعدد آن در یک ردیف Excel قرار می‌گیرند.</p>
-            </div>
+            <div><h2>خروجی Excel مستقل صنفیاب</h2></div>
             <span id="senfyab-export-new-badge" class="status-pill">در حال بررسی…</span>
           </div>
           <div id="senfyab-export-metrics" class="export-metrics">
