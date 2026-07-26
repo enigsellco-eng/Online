@@ -59,6 +59,7 @@ async function request(path, options = {}) {
   }
   const response = await fetch(`${API}${path}`, {
     credentials: "include",
+    cache: "no-store",
     ...options,
     headers,
   });
@@ -856,7 +857,7 @@ async function renderSenfyab() {
           <div class="panel-header">
             <div>
               <h2>خروجی Excel مستقل صنفیاب</h2>
-              <p>شماره کانتکت دائمی است و خروجی صنفیاب با هیچ منبع دیگری داده مشترک ندارد.</p>
+              <p>هر کسب‌وکار یک کانتکت است؛ شماره‌های متعدد آن در یک ردیف Excel قرار می‌گیرند.</p>
             </div>
             <span id="senfyab-export-new-badge" class="status-pill">در حال بررسی…</span>
           </div>
