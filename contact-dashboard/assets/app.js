@@ -528,6 +528,7 @@ async function renderTakhfifan() {
       category: "",
     };
     content.innerHTML = `
+      <div class="behtarino-layout">
       <div class="two-column">
         <section class="panel">
           <div class="panel-header">
@@ -571,6 +572,42 @@ async function renderTakhfifan() {
           <div id="history-list" class="history-list"></div>
         </section>
       </div>
+      <section class="panel export-panel">
+        <div class="panel-header">
+          <div>
+            <h2>خروجی Excel مستقل تخفیفان</h2>
+            <p>شماره کانتکت دائمی است و خروجی تخفیفان هیچ داده مشترکی با سایر منابع ندارد.</p>
+          </div>
+          <span id="takhfifan-export-new-badge" class="status-pill">در حال بررسی…</span>
+        </div>
+        <div id="takhfifan-export-metrics" class="export-metrics">
+          <div><span>آخرین کانتکت</span><strong>—</strong></div>
+          <div><span>آخرین تحویل این فیلتر</span><strong>—</strong></div>
+          <div><span>شروع پیشنهادی</span><strong>—</strong></div>
+          <div><span>کانتکت جدید</span><strong>—</strong></div>
+        </div>
+        <div class="export-grid">
+          <div class="export-controls">
+            <div class="form-grid">
+              ${takhfifanFields("takhfifan-export", input)}
+              <label>از شماره<input id="takhfifan-export-from" type="number" min="1" value="1" /></label>
+              <label>تا شماره<input id="takhfifan-export-to" type="number" min="1" value="1" /></label>
+            </div>
+            <div class="form-actions export-actions">
+              <button id="apply-takhfifan-export-filter" class="button secondary" type="button">اعمال فیلتر</button>
+              <button id="preview-takhfifan-export" class="button secondary" type="button">دانلود آزمایشی</button>
+              <button id="confirm-takhfifan-export" class="button primary" type="button">دانلود و ثبت تحویل</button>
+            </div>
+          </div>
+          <div>
+            <h3 class="export-history-title">تاریخچه تحویل تخفیفان</h3>
+            <div id="takhfifan-export-history" class="history-list compact">
+              <div class="loading">در حال دریافت تاریخچه…</div>
+            </div>
+          </div>
+        </div>
+      </section>
+      </div>
     `;
     document
       .querySelector("#takhfifan-form")
@@ -585,6 +622,14 @@ async function renderTakhfifan() {
       });
     });
     loadHistory("takhfifan", "settings");
+    document.querySelector("#apply-takhfifan-export-filter")
+      .addEventListener("click", loadTakhfifanExport);
+    document.querySelector("#preview-takhfifan-export")
+      .addEventListener("click", () => downloadTakhfifanExport(false));
+    document.querySelector("#confirm-takhfifan-export")
+      .addEventListener("click", () => downloadTakhfifanExport(true));
+    loadTakhfifanExport();
+    loadTakhfifanExportHistory();
   } catch (error) {
     content.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
   }
@@ -607,11 +652,132 @@ async function saveTakhfifan(event) {
     showToast("ورودی‌های تخفیفان با موفقیت ذخیره شدند.");
     form.querySelector(".form-hint").textContent =
       `آخرین تغییر: ${formatDate(data.input.updated_at)}`;
+    const saved = data.input || takhfifanValues("takhfifan");
+    ["keyword", "city", "category"].forEach((field) => {
+      const exportInput = document.querySelector(`#takhfifan-export-${field}`);
+      if (exportInput) exportInput.value = saved[field] || "";
+    });
+    await loadTakhfifanExport();
     loadHistory("takhfifan", "settings");
   } catch (error) {
     showToast(error.message, true);
   } finally {
     button.disabled = false;
+  }
+}
+
+function takhfifanFields(prefix, input) {
+  return `
+    <label>Keyword<input id="${prefix}-keyword" value="${escapeHtml(input.keyword)}" minlength="2" maxlength="120" required /></label>
+    <label>شهر<input id="${prefix}-city" value="${escapeHtml(input.city)}" minlength="2" maxlength="80" required /></label>
+    <label>دسته‌بندی<input id="${prefix}-category" value="${escapeHtml(input.category)}" minlength="2" maxlength="120" required /></label>`;
+}
+
+function takhfifanValues(prefix) {
+  return {
+    keyword: document.querySelector(`#${prefix}-keyword`).value.trim(),
+    city: document.querySelector(`#${prefix}-city`).value.trim(),
+    category: document.querySelector(`#${prefix}-category`).value.trim(),
+  };
+}
+
+async function loadTakhfifanExport() {
+  const filters = takhfifanValues("takhfifan-export");
+  if (Object.values(filters).some((value) => value.length < 2)) {
+    showToast("فیلترهای خروجی تخفیفان را کامل وارد کنید.", true);
+    return;
+  }
+  try {
+    const summary = await request(
+      `/sources/takhfifan/exports/summary?${new URLSearchParams(filters).toString()}`,
+    );
+    const values = [
+      summary.latest_contact_no,
+      summary.last_delivered_contact_no,
+      summary.suggested_from_contact_no,
+      summary.new_count,
+    ];
+    document.querySelectorAll("#takhfifan-export-metrics strong")
+      .forEach((element, index) => {
+        element.textContent = formatNumber(values[index]);
+      });
+    document.querySelector("#takhfifan-export-new-badge").textContent =
+      `${formatNumber(summary.new_count)} جدید`;
+    document.querySelector("#takhfifan-export-from").value =
+      summary.suggested_from_contact_no;
+    document.querySelector("#takhfifan-export-to").value =
+      summary.latest_contact_no;
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+async function loadTakhfifanExportHistory() {
+  const holder = document.querySelector("#takhfifan-export-history");
+  try {
+    const data = await request("/sources/takhfifan/exports/history");
+    holder.innerHTML = data.items.length
+      ? data.items.map((item) => `
+          <article class="history-item">
+            <div class="history-item-head">
+              <strong>#${formatNumber(item.from_contact_no)} تا #${formatNumber(item.to_contact_no)}</strong>
+              <time>${formatDate(item.created_at)}</time>
+            </div>
+            <p>${formatNumber(item.row_count)} کانتکت تحویل‌شده</p>
+          </article>`).join("")
+      : `<div class="empty">هنوز خروجی تحویل‌شده‌ای ثبت نشده است.</div>`;
+  } catch (error) {
+    holder.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+async function downloadTakhfifanExport(confirmDelivery) {
+  const filters = takhfifanValues("takhfifan-export");
+  const payload = {
+    ...filters,
+    from_contact_no: Number(
+      document.querySelector("#takhfifan-export-from").value,
+    ),
+    to_contact_no: Number(
+      document.querySelector("#takhfifan-export-to").value,
+    ),
+    confirm_delivery: confirmDelivery,
+  };
+  if (
+    Object.values(filters).some((value) => value.length < 2) ||
+    payload.from_contact_no < 1 ||
+    payload.to_contact_no < payload.from_contact_no
+  ) {
+    showToast("فیلتر یا بازه خروجی تخفیفان معتبر نیست.", true);
+    return;
+  }
+  const buttons = document.querySelectorAll(".export-actions button");
+  buttons.forEach((button) => (button.disabled = true));
+  try {
+    const blob = await downloadRequest(
+      "/sources/takhfifan/exports/xlsx",
+      payload,
+    );
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download =
+      `takhfifan-contacts-${payload.from_contact_no}-to-${payload.to_contact_no}.xlsx`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    showToast(confirmDelivery
+      ? "فایل تخفیفان دانلود و بازه به‌عنوان تحویل‌شده ثبت شد."
+      : "فایل آزمایشی تخفیفان دانلود شد؛ وضعیت تحویل تغییر نکرد.");
+    if (confirmDelivery) {
+      await loadTakhfifanExport();
+      await loadTakhfifanExportHistory();
+    }
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    buttons.forEach((button) => (button.disabled = false));
   }
 }
 
