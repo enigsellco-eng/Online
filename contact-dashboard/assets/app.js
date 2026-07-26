@@ -217,11 +217,19 @@ function historyItem(item, type) {
   }
   const category = item.category || settings.category_slug || "";
   const subcategory = item.subcategory || "";
+  const versionLabel = item.is_current ? "فعلی" : "قبلی";
   return `
     <article class="history-item">
       <div class="history-item-head">
-        <strong>${escapeHtml(item.query || "بدون Keyword")}</strong>
-        <time>${formatDate(item.archived_at || item.updated_at)}</time>
+        <strong>
+          ${escapeHtml(item.query || "بدون Keyword")}
+          <span class="history-version ${item.is_current ? "current" : ""}">
+            ${versionLabel}
+          </span>
+        </strong>
+        <time>${formatDate(
+          item.archived_at || item.updated_at || item.active_from,
+        )}</time>
       </div>
       <p>
         شهر: ${escapeHtml(item.city || "—")}
