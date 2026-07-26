@@ -662,6 +662,22 @@ nav {
   font-size: 12px;
 }
 
+.history-version {
+  display: inline-flex;
+  margin-right: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: #edf2f0;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.history-version.current {
+  color: var(--green-dark);
+  background: var(--green-soft);
+}
+
 .history-item time,
 .history-item p {
   margin: 0;
