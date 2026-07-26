@@ -221,13 +221,17 @@ function historyItem(item, type, sourceKey = "") {
   const versionLabel = item.is_current ? "فعلی" : "قبلی";
   const title = sourceKey === "senfyab"
     ? item.name || "تنظیمات صنفیاب"
-    : item.query || "بدون Keyword";
+    : sourceKey === "foodkeys"
+      ? item.query || "دسته‌بندی فودکیز"
+      : item.query || "بدون Keyword";
   const details = sourceKey === "senfyab"
     ? [
         category ? `دسته‌بندی: ${escapeHtml(category)}` : "",
         subcategory ? `زیردسته: ${escapeHtml(subcategory)}` : "",
       ].filter(Boolean).join(" · ")
-    : `
+    : sourceKey === "foodkeys"
+      ? `دسته‌بندی: ${escapeHtml(item.query || "—")}`
+      : `
         شهر: ${escapeHtml(item.city || "—")}
         ${category ? ` · دسته‌بندی: ${escapeHtml(category)}` : ""}
         ${subcategory ? ` · زیردسته: ${escapeHtml(subcategory)}` : ""}
@@ -946,6 +950,241 @@ async function saveSenfyab(event) {
   }
 }
 
+async function renderFoodkeys() {
+  setHeader("", "فودکیز", "");
+  content.innerHTML = `<div class="loading">در حال دریافت اطلاعات فودکیز…</div>`;
+  try {
+    const source = await request("/sources/foodkeys");
+    const category = source.input?.keyword || "wholesale_trade";
+    content.innerHTML = `
+      <div class="behtarino-layout">
+        <div class="two-column">
+          <section class="panel">
+            <div class="panel-header">
+              <div><h2>ورودی استخراج</h2></div>
+              <span class="status-pill">${statusLabel(source.status)}</span>
+            </div>
+            <form id="foodkeys-form">
+              <div class="form-grid">
+                <label>
+                  دسته‌بندی
+                  <input id="foodkeys-category" value="${escapeHtml(category)}"
+                    minlength="1" maxlength="120"
+                    pattern="[A-Za-z0-9_-]+" required />
+                </label>
+              </div>
+              <div class="form-actions">
+                <button class="button primary" type="submit">ذخیره ورودی</button>
+                <p class="form-hint">
+                  آخرین تغییر: ${formatDate(source.input?.updated_at)}
+                </p>
+              </div>
+            </form>
+          </section>
+          <section class="panel">
+            <div class="panel-header"><div><h2>تاریخچه</h2></div></div>
+            <div class="tabs">
+              <button class="tab-button" data-history="runs">اجراها</button>
+              <button class="tab-button active" data-history="settings">
+                تغییر ورودی‌ها
+              </button>
+            </div>
+            <div id="history-list" class="history-list"></div>
+          </section>
+        </div>
+        <section class="panel export-panel">
+          <div class="panel-header">
+            <div><h2>خروجی Excel مستقل فودکیز</h2></div>
+            <span id="foodkeys-export-new-badge" class="status-pill">
+              در حال بررسی…
+            </span>
+          </div>
+          <div id="foodkeys-export-metrics" class="export-metrics">
+            <div><span>آخرین کانتکت</span><strong>—</strong></div>
+            <div><span>آخرین تحویل این فیلتر</span><strong>—</strong></div>
+            <div><span>شروع پیشنهادی</span><strong>—</strong></div>
+            <div><span>کانتکت جدید</span><strong>—</strong></div>
+          </div>
+          <div class="export-grid">
+            <div class="export-controls">
+              <div class="form-grid">
+                <label>
+                  دسته‌بندی خروجی
+                  <input id="foodkeys-export-category"
+                    value="${escapeHtml(category)}"
+                    pattern="[A-Za-z0-9_-]+" required />
+                </label>
+                <label>از شماره<input id="foodkeys-export-from"
+                  type="number" min="1" value="1" /></label>
+                <label>تا شماره<input id="foodkeys-export-to"
+                  type="number" min="1" value="1" /></label>
+              </div>
+              <div class="form-actions export-actions">
+                <button id="apply-foodkeys-export-filter"
+                  class="button secondary" type="button">اعمال فیلتر</button>
+                <button id="preview-foodkeys-export"
+                  class="button secondary" type="button">دانلود آزمایشی</button>
+                <button id="confirm-foodkeys-export"
+                  class="button primary" type="button">دانلود و ثبت تحویل</button>
+              </div>
+            </div>
+            <div>
+              <h3 class="export-history-title">تاریخچه تحویل فودکیز</h3>
+              <div id="foodkeys-export-history" class="history-list compact">
+                <div class="loading">در حال دریافت تاریخچه…</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>`;
+    document.querySelector("#foodkeys-form")
+      .addEventListener("submit", saveFoodkeys);
+    document.querySelectorAll("[data-history]").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll("[data-history]").forEach((item) =>
+          item.classList.remove("active"));
+        button.classList.add("active");
+        loadHistory("foodkeys", button.dataset.history);
+      });
+    });
+    document.querySelector("#apply-foodkeys-export-filter")
+      .addEventListener("click", loadFoodkeysExport);
+    document.querySelector("#preview-foodkeys-export")
+      .addEventListener("click", () => downloadFoodkeysExport(false));
+    document.querySelector("#confirm-foodkeys-export")
+      .addEventListener("click", () => downloadFoodkeysExport(true));
+    loadHistory("foodkeys", "settings");
+    loadFoodkeysExport();
+    loadFoodkeysExportHistory();
+  } catch (error) {
+    content.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+async function saveFoodkeys(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type='submit']");
+  const category = document.querySelector("#foodkeys-category").value.trim();
+  button.disabled = true;
+  try {
+    const data = await request("/sources/foodkeys/input", {
+      method: "PUT",
+      body: JSON.stringify({ category }),
+    });
+    showToast("دسته‌بندی فودکیز با موفقیت ذخیره شد.");
+    form.querySelector(".form-hint").textContent =
+      `آخرین تغییر: ${formatDate(data.input.updated_at)}`;
+    document.querySelector("#foodkeys-export-category").value =
+      data.input.category;
+    await loadHistory("foodkeys", "settings");
+    await loadFoodkeysExport();
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function loadFoodkeysExport() {
+  const category =
+    document.querySelector("#foodkeys-export-category").value.trim();
+  if (!category) return;
+  try {
+    const summary = await request(
+      `/sources/foodkeys/exports/summary?${new URLSearchParams({ category })}`,
+    );
+    const values = [
+      summary.latest_contact_no,
+      summary.last_delivered_contact_no,
+      summary.suggested_from_contact_no,
+      summary.new_count,
+    ];
+    document.querySelectorAll("#foodkeys-export-metrics strong")
+      .forEach((element, index) => {
+        element.textContent = formatNumber(values[index]);
+      });
+    document.querySelector("#foodkeys-export-new-badge").textContent =
+      `${formatNumber(summary.new_count)} جدید`;
+    document.querySelector("#foodkeys-export-from").value =
+      summary.suggested_from_contact_no;
+    document.querySelector("#foodkeys-export-to").value =
+      summary.latest_contact_no;
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+async function loadFoodkeysExportHistory() {
+  const holder = document.querySelector("#foodkeys-export-history");
+  try {
+    const data = await request("/sources/foodkeys/exports/history");
+    holder.innerHTML = data.items.length
+      ? data.items.map((item) => `
+          <article class="history-item">
+            <div class="history-item-head">
+              <strong>#${formatNumber(item.from_contact_no)}
+                تا #${formatNumber(item.to_contact_no)}</strong>
+              <time>${formatDate(item.created_at)}</time>
+            </div>
+            <p>${formatNumber(item.row_count)} کانتکت تحویل‌شده</p>
+          </article>`).join("")
+      : `<div class="empty">هنوز خروجی تحویل‌شده‌ای ثبت نشده است.</div>`;
+  } catch (error) {
+    holder.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+async function downloadFoodkeysExport(confirmDelivery) {
+  const payload = {
+    category: document
+      .querySelector("#foodkeys-export-category").value.trim(),
+    from_contact_no: Number(
+      document.querySelector("#foodkeys-export-from").value,
+    ),
+    to_contact_no: Number(
+      document.querySelector("#foodkeys-export-to").value,
+    ),
+    confirm_delivery: confirmDelivery,
+  };
+  if (
+    !payload.category ||
+    payload.from_contact_no < 1 ||
+    payload.to_contact_no < payload.from_contact_no
+  ) {
+    showToast("فیلتر یا بازه خروجی فودکیز معتبر نیست.", true);
+    return;
+  }
+  const buttons = document.querySelectorAll(".export-actions button");
+  buttons.forEach((button) => (button.disabled = true));
+  try {
+    const blob = await downloadRequest(
+      "/sources/foodkeys/exports/xlsx",
+      payload,
+    );
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download =
+      `foodkeys-contacts-${payload.from_contact_no}-to-${payload.to_contact_no}.xlsx`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    showToast(confirmDelivery
+      ? "فایل فودکیز دانلود و بازه به‌عنوان تحویل‌شده ثبت شد."
+      : "فایل آزمایشی فودکیز دانلود شد؛ وضعیت تحویل تغییر نکرد.");
+    if (confirmDelivery) {
+      await loadFoodkeysExport();
+      await loadFoodkeysExportHistory();
+    }
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    buttons.forEach((button) => (button.disabled = false));
+  }
+}
+
 function senfyabFields(prefix, input) {
   return `
     <label>نام جستجو<input id="${prefix}-name" value="${escapeHtml(input.name)}" minlength="1" maxlength="200" required /></label>
@@ -1330,6 +1569,7 @@ async function switchView(view) {
   if (view === "behtarino") return renderBehtarino();
   if (view === "takhfifan") return renderTakhfifan();
   if (view === "senfyab") return renderSenfyab();
+  if (view === "foodkeys") return renderFoodkeys();
   if (view === "divar") return renderDivar();
   renderLocked(view);
 }

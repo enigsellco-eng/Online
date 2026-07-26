@@ -34,6 +34,7 @@ BEHTARINO_API = os.getenv("MARKETING_BEHTARINO_API", "http://127.0.0.1:8031")
 TAKHFIFAN_API = os.getenv("MARKETING_TAKHFIFAN_API", "http://127.0.0.1:8051")
 DIVAR_API = os.getenv("MARKETING_DIVAR_API", "http://127.0.0.1:8032")
 SENFYAB_API = os.getenv("MARKETING_SENFYAB_API", "http://127.0.0.1:8061")
+FOODKEYS_API = os.getenv("MARKETING_FOODKEYS_API", "http://127.0.0.1:8071")
 TOROB_API = os.getenv("MARKETING_TOROB_API", "http://127.0.0.1:8040")
 UPSTREAM_TIMEOUT = float(os.getenv("MARKETING_UPSTREAM_TIMEOUT_SECONDS", "5"))
 
@@ -185,6 +186,20 @@ class SenfyabInput(BaseModel):
     subcategory: str = Field(min_length=1, max_length=160)
 
 
+class FoodkeysInput(BaseModel):
+    category: str = Field(
+        min_length=1,
+        max_length=120,
+        pattern=r"^[A-Za-z0-9_-]+$",
+    )
+
+
+class FoodkeysExportInput(FoodkeysInput):
+    from_contact_no: int = Field(gt=0)
+    to_contact_no: int = Field(gt=0)
+    confirm_delivery: bool = False
+
+
 class SenfyabExportInput(SenfyabInput):
     from_contact_no: int = Field(gt=0)
     to_contact_no: int = Field(gt=0)
@@ -297,12 +312,14 @@ async def source_summary(source_key: str) -> dict[str, Any]:
         "takhfifan": TAKHFIFAN_API,
         "divar": DIVAR_API,
         "senfyab": SENFYAB_API,
+        "foodkeys": FOODKEYS_API,
     }
     names = {
         "behtarino": "بهترینو",
         "takhfifan": "تخفیفان",
         "divar": "دیوار",
         "senfyab": "صنفیاب",
+        "foodkeys": "فودکیز",
     }
     base = bases[source_key]
     name = names[source_key]
@@ -317,7 +334,7 @@ async def source_summary(source_key: str) -> dict[str, Any]:
             "name": name,
             "available": True,
             "configuration_enabled": source_key
-            in {"behtarino", "takhfifan", "divar", "senfyab"},
+            in {"behtarino", "takhfifan", "divar", "senfyab", "foodkeys"},
             "contacts": counts.get("contacts", 0),
             "records": counts.get("listings", 0),
             "status": runs[0].get("status", "idle") if runs else "idle",
@@ -449,6 +466,7 @@ async def overview(_: dict[str, Any] = Depends(current_session)) -> dict[str, An
             source_summary("torob"),
             source_summary("divar"),
             source_summary("senfyab"),
+            source_summary("foodkeys"),
         )
     )
     return {
@@ -464,15 +482,20 @@ async def overview(_: dict[str, Any] = Depends(current_session)) -> dict[str, An
 async def source_detail(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
-    if source_key not in {"behtarino", "takhfifan", "torob", "divar", "senfyab"}:
+    if source_key not in {
+        "behtarino", "takhfifan", "torob", "divar", "senfyab", "foodkeys"
+    }:
         raise HTTPException(404, "منبع پیدا نشد.")
     summary = await source_summary(source_key)
-    if source_key in {"behtarino", "takhfifan", "divar", "senfyab"} and summary["available"]:
+    if source_key in {
+        "behtarino", "takhfifan", "divar", "senfyab", "foodkeys"
+    } and summary["available"]:
         base = {
             "behtarino": BEHTARINO_API,
             "takhfifan": TAKHFIFAN_API,
             "divar": DIVAR_API,
             "senfyab": SENFYAB_API,
+            "foodkeys": FOODKEYS_API,
         }[source_key]
         jobs = await upstream_json(
             "GET", f"{base}/api/sources/{source_key}/jobs"
@@ -505,7 +528,9 @@ async def source_detail(
 async def run_history(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
-    if source_key not in {"behtarino", "takhfifan", "torob", "divar", "senfyab"}:
+    if source_key not in {
+        "behtarino", "takhfifan", "torob", "divar", "senfyab", "foodkeys"
+    }:
         raise HTTPException(404, "منبع پیدا نشد.")
     summary = await source_summary(source_key)
     return {"items": summary["recent_runs"]}
@@ -515,7 +540,9 @@ async def run_history(
 async def settings_history(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
-    if source_key not in {"behtarino", "takhfifan", "torob", "divar", "senfyab"}:
+    if source_key not in {
+        "behtarino", "takhfifan", "torob", "divar", "senfyab", "foodkeys"
+    }:
         raise HTTPException(404, "منبع پیدا نشد.")
     if source_key == "torob":
         return {"items": []}
@@ -524,6 +551,7 @@ async def settings_history(
         "takhfifan": TAKHFIFAN_API,
         "divar": DIVAR_API,
         "senfyab": SENFYAB_API,
+        "foodkeys": FOODKEYS_API,
     }[source_key]
     jobs = await upstream_json("GET", f"{base}/api/sources/{source_key}/jobs")
     if not jobs:
@@ -616,6 +644,66 @@ async def update_senfyab_input(
             "name": updated.get("name") or values["name"],
             "category": updated.get("category") or values["category"],
             "subcategory": updated.get("subcategory") or values["subcategory"],
+            "updated_at": updated.get("updated_at"),
+        }
+    }
+
+
+@app.put("/api/marketing/sources/foodkeys/input")
+async def update_foodkeys_input(
+    payload: FoodkeysInput,
+    request: Request,
+    session: dict[str, Any] = Depends(require_csrf),
+) -> dict[str, Any]:
+    category = payload.category.strip()
+    jobs = await upstream_json(
+        "GET", f"{FOODKEYS_API}/api/sources/foodkeys/jobs"
+    )
+    if not jobs:
+        raise HTTPException(409, "Job فودکیز هنوز ساخته نشده است.")
+    job = jobs[0]
+    try:
+        settings = json.loads(job.get("settings_json") or "{}")
+    except json.JSONDecodeError:
+        settings = {}
+    before = {"category": job.get("query") or ""}
+    updated = await upstream_json(
+        "PUT",
+        f"{FOODKEYS_API}/api/sources/foodkeys/jobs/{job['id']}",
+        {
+            "name": job.get("name") or "FoodKeys",
+            "city": job.get("city") or "",
+            "category": job.get("category"),
+            "subcategory": job.get("subcategory"),
+            "query": category,
+            "enabled": bool(job.get("enabled", True)),
+            "schedule": job.get("schedule") or "batch",
+            "result_limit": job.get("result_limit") or 24,
+            "destination_sheet": job.get("destination_sheet") or "Businesses",
+            "settings": settings,
+        },
+    )
+    after = {"category": category}
+    with connect() as db:
+        db.execute(
+            """
+            INSERT INTO audit_log
+                (user_id,action,source_key,before_json,after_json,remote_ip,created_at)
+            VALUES (?,?,?,?,?,?,?)
+            """,
+            (
+                session["user_id"],
+                "update_marketing_input",
+                "foodkeys",
+                json.dumps(before, ensure_ascii=False),
+                json.dumps(after, ensure_ascii=False),
+                client_ip(request),
+                iso_now(),
+            ),
+        )
+    return {
+        "input": {
+            "category": updated.get("query") or category,
             "updated_at": updated.get("updated_at"),
         }
     }
@@ -894,6 +982,80 @@ async def behtarino_export_xlsx(
             "Content-Disposition": upstream.headers.get(
                 "content-disposition",
                 'attachment; filename="behtarino-contacts.xlsx"',
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.get("/api/marketing/sources/foodkeys/exports/summary")
+async def foodkeys_export_summary(
+    category: str,
+    _: dict[str, Any] = Depends(current_session),
+) -> dict[str, Any]:
+    filters = urlencode({"query": category.strip()})
+    return await upstream_json(
+        "GET",
+        f"{FOODKEYS_API}/api/sources/foodkeys/exports/summary?{filters}",
+    )
+
+
+@app.get("/api/marketing/sources/foodkeys/exports/history")
+async def foodkeys_export_history(
+) -> dict[str, Any]:
+    items = await upstream_json(
+        "GET",
+        f"{FOODKEYS_API}/api/sources/foodkeys/exports/history?limit=30",
+    )
+    return {"items": items}
+
+
+@app.post("/api/marketing/sources/foodkeys/exports/xlsx")
+async def foodkeys_export_xlsx(
+    payload: FoodkeysExportInput,
+    request: Request,
+    session: dict[str, Any] = Depends(require_csrf),
+) -> Response:
+    if payload.to_contact_no < payload.from_contact_no:
+        raise HTTPException(400, "بازه شماره کانتکت معتبر نیست.")
+    upstream = await upstream_file(
+        "POST",
+        f"{FOODKEYS_API}/api/sources/foodkeys/exports/xlsx",
+        {
+            "query": payload.category.strip(),
+            "from_contact_no": payload.from_contact_no,
+            "to_contact_no": payload.to_contact_no,
+            "confirm_delivery": payload.confirm_delivery,
+        },
+    )
+    if payload.confirm_delivery:
+        with connect() as db:
+            db.execute(
+                """
+                INSERT INTO audit_log
+                    (user_id,action,source_key,before_json,after_json,remote_ip,created_at)
+                VALUES (?,?,?,?,?,?,?)
+                """,
+                (
+                    session["user_id"],
+                    "deliver_contact_export",
+                    "foodkeys",
+                    None,
+                    json.dumps(payload.model_dump(), ensure_ascii=False),
+                    client_ip(request),
+                    iso_now(),
+                ),
+            )
+    return Response(
+        content=upstream.content,
+        media_type=(
+            "application/vnd.openxmlformats-officedocument."
+            "spreadsheetml.sheet"
+        ),
+        headers={
+            "Content-Disposition": upstream.headers.get(
+                "content-disposition",
+                'attachment; filename="foodkeys-contacts.xlsx"',
             ),
             "Cache-Control": "no-store",
         },

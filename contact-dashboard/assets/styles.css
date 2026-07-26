@@ -314,6 +314,11 @@ nav {
   color: #fff;
 }
 
+.source-badge.foodkeys {
+  background: #d97706;
+  color: #fff;
+}
+
 .source-badge.divar {
   background: #a5453e;
 }
