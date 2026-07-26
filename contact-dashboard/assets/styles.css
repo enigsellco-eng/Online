@@ -309,6 +309,11 @@ nav {
   font-size: 10px;
 }
 
+.source-badge.senfyab {
+  background: #8b5cf6;
+  color: #fff;
+}
+
 .source-badge.divar {
   background: #a5453e;
 }

@@ -193,7 +193,7 @@ async function renderOverview() {
   }
 }
 
-function historyItem(item, type) {
+function historyItem(item, type, sourceKey = "") {
   if (type === "runs") {
     return `
       <article class="history-item">
@@ -218,11 +218,24 @@ function historyItem(item, type) {
   const category = item.category || settings.category_slug || "";
   const subcategory = item.subcategory || "";
   const versionLabel = item.is_current ? "فعلی" : "قبلی";
+  const title = sourceKey === "senfyab"
+    ? item.name || "تنظیمات صنفیاب"
+    : item.query || "بدون Keyword";
+  const details = sourceKey === "senfyab"
+    ? [
+        category ? `دسته‌بندی: ${escapeHtml(category)}` : "",
+        subcategory ? `زیردسته: ${escapeHtml(subcategory)}` : "",
+      ].filter(Boolean).join(" · ")
+    : `
+        شهر: ${escapeHtml(item.city || "—")}
+        ${category ? ` · دسته‌بندی: ${escapeHtml(category)}` : ""}
+        ${subcategory ? ` · زیردسته: ${escapeHtml(subcategory)}` : ""}
+      `;
   return `
     <article class="history-item">
       <div class="history-item-head">
         <strong>
-          ${escapeHtml(item.query || "بدون Keyword")}
+          ${escapeHtml(title)}
           <span class="history-version ${item.is_current ? "current" : ""}">
             ${versionLabel}
           </span>
@@ -231,11 +244,7 @@ function historyItem(item, type) {
           item.archived_at || item.updated_at || item.active_from,
         )}</time>
       </div>
-      <p>
-        شهر: ${escapeHtml(item.city || "—")}
-        ${category ? ` · دسته‌بندی: ${escapeHtml(category)}` : ""}
-        ${subcategory ? ` · زیردسته: ${escapeHtml(subcategory)}` : ""}
-      </p>
+      <p>${details}</p>
     </article>
   `;
 }
@@ -249,7 +258,7 @@ async function loadHistory(sourceKey, type) {
       `/sources/${sourceKey}/${type === "runs" ? "runs" : "settings-history"}`,
     );
     holder.innerHTML = data.items.length
-      ? data.items.map((item) => historyItem(item, type)).join("")
+      ? data.items.map((item) => historyItem(item, type, sourceKey)).join("")
       : `<div class="empty">تاریخچه‌ای ثبت نشده است.</div>`;
   } catch (error) {
     holder.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
@@ -789,6 +798,104 @@ async function downloadTakhfifanExport(confirmDelivery) {
   }
 }
 
+async function renderSenfyab() {
+  setHeader("", "صنفیاب", "");
+  content.innerHTML = `<div class="loading">در حال دریافت اطلاعات صنفیاب…</div>`;
+  try {
+    const source = await request("/sources/senfyab");
+    const input = source.input || { name: "", category: "", subcategory: "" };
+    content.innerHTML = `
+      <div class="behtarino-layout">
+        <div class="two-column">
+          <section class="panel">
+            <div class="panel-header">
+              <div><h2>ورودی‌های استخراج</h2></div>
+              <span class="status-pill">${statusLabel(source.status)}</span>
+            </div>
+            <form id="senfyab-form">
+              <div class="form-grid">
+                <label>
+                  نام جستجو
+                  <input id="senfyab-name"
+                    value="${escapeHtml(input.name || "")}"
+                    minlength="1" maxlength="200" required />
+                </label>
+                <label>
+                  دسته‌بندی
+                  <input id="senfyab-category"
+                    value="${escapeHtml(input.category)}"
+                    minlength="2" maxlength="120" required />
+                </label>
+                <label>
+                  زیردسته
+                  <input id="senfyab-subcategory"
+                    value="${escapeHtml(input.subcategory)}"
+                    minlength="2" maxlength="160" required />
+                </label>
+              </div>
+              <div class="form-actions">
+                <button class="button primary" type="submit">ذخیره ورودی‌ها</button>
+                <p class="form-hint">
+                  آخرین تغییر: ${formatDate(input.updated_at)}
+                </p>
+              </div>
+            </form>
+          </section>
+          <section class="panel">
+            <div class="panel-header"><div><h2>تاریخچه</h2></div></div>
+            <div class="tabs">
+              <button class="tab-button" data-history="runs">اجراها</button>
+              <button class="tab-button active" data-history="settings">
+                تغییر ورودی‌ها
+              </button>
+            </div>
+            <div id="history-list" class="history-list"></div>
+          </section>
+        </div>
+      </div>`;
+    document
+      .querySelector("#senfyab-form")
+      .addEventListener("submit", saveSenfyab);
+    document.querySelectorAll("[data-history]").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll("[data-history]").forEach((item) =>
+          item.classList.remove("active"));
+        button.classList.add("active");
+        loadHistory("senfyab", button.dataset.history);
+      });
+    });
+    loadHistory("senfyab", "settings");
+  } catch (error) {
+    content.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+async function saveSenfyab(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type='submit']");
+  button.disabled = true;
+  try {
+    const data = await request("/sources/senfyab/input", {
+      method: "PUT",
+      body: JSON.stringify({
+        name: document.querySelector("#senfyab-name").value.trim(),
+        category: document.querySelector("#senfyab-category").value.trim(),
+        subcategory: document
+          .querySelector("#senfyab-subcategory").value.trim(),
+      }),
+    });
+    showToast("ورودی‌های صنفیاب با موفقیت ذخیره شدند.");
+    form.querySelector(".form-hint").textContent =
+      `آخرین تغییر: ${formatDate(data.input.updated_at)}`;
+    await loadHistory("senfyab", "settings");
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function renderDivar() {
   setHeader("", "دیوار", "");
   content.innerHTML = `<div class="loading">در حال دریافت اطلاعات دیوار…</div>`;
@@ -1060,6 +1167,7 @@ async function switchView(view) {
   if (view === "overview") return renderOverview();
   if (view === "behtarino") return renderBehtarino();
   if (view === "takhfifan") return renderTakhfifan();
+  if (view === "senfyab") return renderSenfyab();
   if (view === "divar") return renderDivar();
   renderLocked(view);
 }
