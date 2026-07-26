@@ -304,6 +304,11 @@ nav {
   background: #d94b61;
 }
 
+.source-badge.takhfifan {
+  background: #eb7b31;
+  font-size: 10px;
+}
+
 .source-badge.divar {
   background: #a5453e;
 }
