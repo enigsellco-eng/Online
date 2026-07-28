@@ -93,6 +93,30 @@ async function downloadRequest(path, payload) {
   return response.blob();
 }
 
+async function downloadAllContacts(sourceKey) {
+  const button = document.querySelector(`#download-all-${sourceKey}`);
+  if (button) button.disabled = true;
+  try {
+    const blob = await downloadRequest(
+      `/sources/${sourceKey}/exports/all/xlsx`,
+      {},
+    );
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${sourceKey}-all-contacts.xlsx`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    showToast("خروجی کل دیتابیس دانلود شد.");
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 function showToast(message, isError = false) {
   toast.textContent = message;
   toast.classList.toggle("error", isError);
@@ -370,6 +394,9 @@ async function renderBehtarino() {
               <button id="confirm-export" class="button primary" type="button">
                 دانلود و ثبت تحویل
               </button>
+              <button id="download-all-behtarino" class="button secondary" type="button">
+                دانلود کل دیتابیس
+              </button>
             </div>
           </div>
           <div>
@@ -404,6 +431,9 @@ async function renderBehtarino() {
     document
       .querySelector("#confirm-export")
       .addEventListener("click", () => downloadBehtarinoExport(true));
+    document
+      .querySelector("#download-all-behtarino")
+      .addEventListener("click", () => downloadAllContacts("behtarino"));
     loadBehtarinoExport();
     loadBehtarinoExportHistory();
   } catch (error) {
@@ -619,6 +649,7 @@ async function renderTakhfifan() {
               <button id="apply-takhfifan-export-filter" class="button secondary" type="button">اعمال فیلتر</button>
               <button id="preview-takhfifan-export" class="button secondary" type="button">دانلود آزمایشی</button>
               <button id="confirm-takhfifan-export" class="button primary" type="button">دانلود و ثبت تحویل</button>
+              <button id="download-all-takhfifan" class="button secondary" type="button">دانلود کل دیتابیس</button>
             </div>
           </div>
           <div>
@@ -650,6 +681,8 @@ async function renderTakhfifan() {
       .addEventListener("click", () => downloadTakhfifanExport(false));
     document.querySelector("#confirm-takhfifan-export")
       .addEventListener("click", () => downloadTakhfifanExport(true));
+    document.querySelector("#download-all-takhfifan")
+      .addEventListener("click", () => downloadAllContacts("takhfifan"));
     loadTakhfifanExport();
     loadTakhfifanExportHistory();
   } catch (error) {
@@ -879,6 +912,7 @@ async function renderSenfyab() {
                 <button id="apply-senfyab-export-filter" class="button secondary" type="button">اعمال فیلتر</button>
                 <button id="preview-senfyab-export" class="button secondary" type="button">دانلود آزمایشی</button>
                 <button id="confirm-senfyab-export" class="button primary" type="button">دانلود و ثبت تحویل</button>
+                <button id="download-all-senfyab" class="button secondary" type="button">دانلود کل دیتابیس</button>
               </div>
             </div>
             <div>
@@ -908,6 +942,8 @@ async function renderSenfyab() {
       .addEventListener("click", () => downloadSenfyabExport(false));
     document.querySelector("#confirm-senfyab-export")
       .addEventListener("click", () => downloadSenfyabExport(true));
+    document.querySelector("#download-all-senfyab")
+      .addEventListener("click", () => downloadAllContacts("senfyab"));
     loadSenfyabExport();
     loadSenfyabExportHistory();
   } catch (error) {
@@ -1023,6 +1059,8 @@ async function renderFoodkeys() {
                   class="button secondary" type="button">دانلود آزمایشی</button>
                 <button id="confirm-foodkeys-export"
                   class="button primary" type="button">دانلود و ثبت تحویل</button>
+                <button id="download-all-foodkeys"
+                  class="button secondary" type="button">دانلود کل دیتابیس</button>
               </div>
             </div>
             <div>
@@ -1050,6 +1088,8 @@ async function renderFoodkeys() {
       .addEventListener("click", () => downloadFoodkeysExport(false));
     document.querySelector("#confirm-foodkeys-export")
       .addEventListener("click", () => downloadFoodkeysExport(true));
+    document.querySelector("#download-all-foodkeys")
+      .addEventListener("click", () => downloadAllContacts("foodkeys"));
     loadHistory("foodkeys", "settings");
     loadFoodkeysExport();
     loadFoodkeysExportHistory();
@@ -1357,6 +1397,7 @@ async function renderDivar() {
                 <button id="apply-divar-export-filter" class="button secondary" type="button">اعمال فیلتر</button>
                 <button id="preview-divar-export" class="button secondary" type="button">دانلود آزمایشی</button>
                 <button id="confirm-divar-export" class="button primary" type="button">دانلود و ثبت تحویل</button>
+                <button id="download-all-divar" class="button secondary" type="button">دانلود کل دیتابیس</button>
               </div>
             </div>
             <div>
@@ -1383,6 +1424,8 @@ async function renderDivar() {
       .addEventListener("click", () => downloadDivarExport(false));
     document.querySelector("#confirm-divar-export")
       .addEventListener("click", () => downloadDivarExport(true));
+    document.querySelector("#download-all-divar")
+      .addEventListener("click", () => downloadAllContacts("divar"));
     loadHistory("divar", "settings");
     loadDivarExport();
     loadDivarExportHistory();

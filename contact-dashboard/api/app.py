@@ -1332,3 +1332,113 @@ async def divar_export_xlsx(
             "Cache-Control": "no-store",
         },
     )
+
+
+@app.post("/api/marketing/sources/behtarino/exports/all/xlsx")
+async def behtarino_export_all_xlsx(
+    _: dict[str, Any] = Depends(require_csrf),
+) -> Response:
+    upstream = await upstream_file(
+        "POST",
+        f"{BEHTARINO_API}/api/sources/behtarino/exports/all/xlsx",
+        {},
+    )
+    return Response(
+        content=upstream.content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": upstream.headers.get(
+                "content-disposition",
+                'attachment; filename="behtarino-all-contacts.xlsx"',
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.post("/api/marketing/sources/divar/exports/all/xlsx")
+async def divar_export_all_xlsx(
+    _: dict[str, Any] = Depends(require_csrf),
+) -> Response:
+    upstream = await upstream_file(
+        "POST",
+        f"{DIVAR_API}/api/sources/divar/exports/all/xlsx",
+        {},
+    )
+    return Response(
+        content=upstream.content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": upstream.headers.get(
+                "content-disposition",
+                'attachment; filename="divar-all-contacts.xlsx"',
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.post("/api/marketing/sources/takhfifan/exports/all/xlsx")
+async def takhfifan_export_all_xlsx(
+    _: dict[str, Any] = Depends(require_csrf),
+) -> Response:
+    upstream = await upstream_file(
+        "POST",
+        f"{TAKHFIFAN_API}/api/sources/takhfifan/exports/all/xlsx",
+        {},
+    )
+    return Response(
+        content=upstream.content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": upstream.headers.get(
+                "content-disposition",
+                'attachment; filename="takhfifan-all-contacts.xlsx"',
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.post("/api/marketing/sources/senfyab/exports/all/xlsx")
+async def senfyab_export_all_xlsx(
+    _: dict[str, Any] = Depends(require_csrf),
+) -> Response:
+    upstream = await upstream_file(
+        "POST",
+        f"{SENFYAB_API}/api/sources/senfyab/exports/all/xlsx",
+        {},
+    )
+    return Response(
+        content=upstream.content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": upstream.headers.get(
+                "content-disposition",
+                'attachment; filename="senfyab-all-contacts.xlsx"',
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.post("/api/marketing/sources/foodkeys/exports/all/xlsx")
+async def foodkeys_export_all_xlsx(
+    _: dict[str, Any] = Depends(require_csrf),
+) -> Response:
+    upstream = await upstream_file(
+        "POST",
+        f"{FOODKEYS_API}/api/sources/foodkeys/exports/all/xlsx",
+        {},
+    )
+    return Response(
+        content=upstream.content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": upstream.headers.get(
+                "content-disposition",
+                'attachment; filename="foodkeys-all-contacts.xlsx"',
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
