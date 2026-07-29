@@ -304,6 +304,10 @@ nav {
   background: #d94b61;
 }
 
+.source-badge.avval {
+  background: #5b4b8a;
+}
+
 .source-badge.takhfifan {
   background: #eb7b31;
   font-size: 10px;

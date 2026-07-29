@@ -31,6 +31,7 @@ ALLOWED_ORIGIN = os.getenv("MARKETING_ALLOWED_ORIGIN", "https://enigsell.com")
 COOKIE_NAME = os.getenv("MARKETING_SESSION_COOKIE", "enigsell_marketing_session")
 SESSION_HOURS = int(os.getenv("MARKETING_SESSION_HOURS", "12"))
 BEHTARINO_API = os.getenv("MARKETING_BEHTARINO_API", "http://127.0.0.1:8031")
+AVVAL_API = os.getenv("MARKETING_AVVAL_API", "http://127.0.0.1:8081")
 TAKHFIFAN_API = os.getenv("MARKETING_TAKHFIFAN_API", "http://127.0.0.1:8051")
 DIVAR_API = os.getenv("MARKETING_DIVAR_API", "http://127.0.0.1:8032")
 SENFYAB_API = os.getenv("MARKETING_SENFYAB_API", "http://127.0.0.1:8061")
@@ -147,6 +148,11 @@ class BehtarinoInput(BaseModel):
     city: str = Field(min_length=2, max_length=80)
 
 
+class AvvalInput(BaseModel):
+    keyword: str = Field(min_length=2, max_length=120)
+    city: str = Field(min_length=2, max_length=80)
+
+
 class TakhfifanInput(BaseModel):
     keyword: str = Field(min_length=2, max_length=120)
     city: str = Field(min_length=2, max_length=80)
@@ -165,6 +171,10 @@ class BehtarinoExportInput(BaseModel):
     from_contact_no: int = Field(gt=0)
     to_contact_no: int = Field(gt=0)
     confirm_delivery: bool = False
+
+
+class AvvalExportInput(BehtarinoExportInput):
+    pass
 
 
 class DivarInput(BaseModel):
@@ -309,6 +319,7 @@ async def source_summary(source_key: str) -> dict[str, Any]:
 
     bases = {
         "behtarino": BEHTARINO_API,
+        "avval": AVVAL_API,
         "takhfifan": TAKHFIFAN_API,
         "divar": DIVAR_API,
         "senfyab": SENFYAB_API,
@@ -316,6 +327,7 @@ async def source_summary(source_key: str) -> dict[str, Any]:
     }
     names = {
         "behtarino": "بهترینو",
+        "avval": "کتاب اول",
         "takhfifan": "تخفیفان",
         "divar": "دیوار",
         "senfyab": "صنفیاب",
@@ -334,7 +346,7 @@ async def source_summary(source_key: str) -> dict[str, Any]:
             "name": name,
             "available": True,
             "configuration_enabled": source_key
-            in {"behtarino", "takhfifan", "divar", "senfyab", "foodkeys"},
+            in {"behtarino", "avval", "takhfifan", "divar", "senfyab", "foodkeys"},
             "contacts": counts.get("contacts", 0),
             "records": counts.get("listings", 0),
             "status": runs[0].get("status", "idle") if runs else "idle",
@@ -462,6 +474,7 @@ async def overview(_: dict[str, Any] = Depends(current_session)) -> dict[str, An
     sources = list(
         await asyncio.gather(
             source_summary("behtarino"),
+            source_summary("avval"),
             source_summary("takhfifan"),
             source_summary("torob"),
             source_summary("divar"),
@@ -483,15 +496,16 @@ async def source_detail(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
     if source_key not in {
-        "behtarino", "takhfifan", "torob", "divar", "senfyab", "foodkeys"
+        "behtarino", "avval", "takhfifan", "torob", "divar", "senfyab", "foodkeys"
     }:
         raise HTTPException(404, "منبع پیدا نشد.")
     summary = await source_summary(source_key)
     if source_key in {
-        "behtarino", "takhfifan", "divar", "senfyab", "foodkeys"
+        "behtarino", "avval", "takhfifan", "divar", "senfyab", "foodkeys"
     } and summary["available"]:
         base = {
             "behtarino": BEHTARINO_API,
+            "avval": AVVAL_API,
             "takhfifan": TAKHFIFAN_API,
             "divar": DIVAR_API,
             "senfyab": SENFYAB_API,
@@ -529,7 +543,7 @@ async def run_history(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
     if source_key not in {
-        "behtarino", "takhfifan", "torob", "divar", "senfyab", "foodkeys"
+        "behtarino", "avval", "takhfifan", "torob", "divar", "senfyab", "foodkeys"
     }:
         raise HTTPException(404, "منبع پیدا نشد.")
     summary = await source_summary(source_key)
@@ -541,13 +555,14 @@ async def settings_history(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
     if source_key not in {
-        "behtarino", "takhfifan", "torob", "divar", "senfyab", "foodkeys"
+        "behtarino", "avval", "takhfifan", "torob", "divar", "senfyab", "foodkeys"
     }:
         raise HTTPException(404, "منبع پیدا نشد.")
     if source_key == "torob":
         return {"items": []}
     base = {
         "behtarino": BEHTARINO_API,
+        "avval": AVVAL_API,
         "takhfifan": TAKHFIFAN_API,
         "divar": DIVAR_API,
         "senfyab": SENFYAB_API,
@@ -773,6 +788,66 @@ async def update_behtarino_input(
     }
 
 
+@app.put("/api/marketing/sources/avval/input")
+async def update_avval_input(
+    payload: AvvalInput,
+    request: Request,
+    session: dict[str, Any] = Depends(require_csrf),
+) -> dict[str, Any]:
+    keyword = " ".join(payload.keyword.split())
+    city = " ".join(payload.city.split())
+    jobs = await upstream_json("GET", f"{AVVAL_API}/api/sources/avval/jobs")
+    if not jobs:
+        raise HTTPException(409, "Job کتاب اول هنوز ساخته نشده است.")
+    job = jobs[0]
+    try:
+        settings = json.loads(job.get("settings_json") or "{}")
+    except json.JSONDecodeError:
+        settings = {}
+    before = {"keyword": job.get("query") or "", "city": job.get("city") or ""}
+    updated = await upstream_json(
+        "PUT",
+        f"{AVVAL_API}/api/sources/avval/jobs/{job['id']}",
+        {
+            "name": job["name"],
+            "city": city,
+            "category": job.get("category"),
+            "subcategory": job.get("subcategory"),
+            "query": keyword,
+            "enabled": bool(job.get("enabled", True)),
+            "schedule": job.get("schedule") or "batch",
+            "result_limit": job.get("result_limit") or 24,
+            "destination_sheet": job.get("destination_sheet") or "Avval",
+            "settings": settings,
+        },
+    )
+    after = {"keyword": keyword, "city": city}
+    with connect() as db:
+        db.execute(
+            """
+            INSERT INTO audit_log
+                (user_id,action,source_key,before_json,after_json,remote_ip,created_at)
+            VALUES (?,?,?,?,?,?,?)
+            """,
+            (
+                session["user_id"],
+                "update_marketing_input",
+                "avval",
+                json.dumps(before, ensure_ascii=False),
+                json.dumps(after, ensure_ascii=False),
+                client_ip(request),
+                iso_now(),
+            ),
+        )
+    return {
+        "input": {
+            "keyword": updated.get("query") or keyword,
+            "city": updated.get("city") or city,
+            "updated_at": updated.get("updated_at"),
+        }
+    }
+
+
 @app.put("/api/marketing/sources/divar/input")
 async def update_divar_input(
     payload: DivarInput,
@@ -982,6 +1057,82 @@ async def behtarino_export_xlsx(
             "Content-Disposition": upstream.headers.get(
                 "content-disposition",
                 'attachment; filename="behtarino-contacts.xlsx"',
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.get("/api/marketing/sources/avval/exports/summary")
+async def avval_export_summary(
+    keyword: str,
+    city: str,
+    _: dict[str, Any] = Depends(current_session),
+) -> dict[str, Any]:
+    filters = urlencode(
+        {
+            "query": " ".join(keyword.split()),
+            "city": " ".join(city.split()),
+        }
+    )
+    return await upstream_json(
+        "GET", f"{AVVAL_API}/api/sources/avval/exports/summary?{filters}"
+    )
+
+
+@app.get("/api/marketing/sources/avval/exports/history")
+async def avval_export_history(
+    _: dict[str, Any] = Depends(current_session),
+) -> dict[str, Any]:
+    items = await upstream_json(
+        "GET", f"{AVVAL_API}/api/sources/avval/exports/history?limit=30"
+    )
+    return {"items": items}
+
+
+@app.post("/api/marketing/sources/avval/exports/xlsx")
+async def avval_export_xlsx(
+    payload: AvvalExportInput,
+    request: Request,
+    session: dict[str, Any] = Depends(require_csrf),
+) -> Response:
+    if payload.to_contact_no < payload.from_contact_no:
+        raise HTTPException(400, "بازه شماره کانتکت معتبر نیست.")
+    upstream = await upstream_file(
+        "POST",
+        f"{AVVAL_API}/api/sources/avval/exports/xlsx",
+        {
+            "query": " ".join(payload.keyword.split()),
+            "city": " ".join(payload.city.split()),
+            "from_contact_no": payload.from_contact_no,
+            "to_contact_no": payload.to_contact_no,
+            "confirm_delivery": payload.confirm_delivery,
+        },
+    )
+    if payload.confirm_delivery:
+        with connect() as db:
+            db.execute(
+                """
+                INSERT INTO audit_log
+                    (user_id,action,source_key,before_json,after_json,remote_ip,created_at)
+                VALUES (?,?,?,?,?,?,?)
+                """,
+                (
+                    session["user_id"],
+                    "deliver_contact_export",
+                    "avval",
+                    None,
+                    json.dumps(payload.model_dump(), ensure_ascii=False),
+                    client_ip(request),
+                    iso_now(),
+                ),
+            )
+    return Response(
+        content=upstream.content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": upstream.headers.get(
+                "content-disposition", 'attachment; filename="avval-contacts.xlsx"'
             ),
             "Cache-Control": "no-store",
         },
@@ -1350,6 +1501,28 @@ async def behtarino_export_all_xlsx(
             "Content-Disposition": upstream.headers.get(
                 "content-disposition",
                 'attachment; filename="behtarino-all-contacts.xlsx"',
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.post("/api/marketing/sources/avval/exports/all/xlsx")
+async def avval_export_all_xlsx(
+    _: dict[str, Any] = Depends(require_csrf),
+) -> Response:
+    upstream = await upstream_file(
+        "POST",
+        f"{AVVAL_API}/api/sources/avval/exports/all/xlsx",
+        {},
+    )
+    return Response(
+        content=upstream.content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": upstream.headers.get(
+                "content-disposition",
+                'attachment; filename="avval-all-contacts.xlsx"',
             ),
             "Cache-Control": "no-store",
         },

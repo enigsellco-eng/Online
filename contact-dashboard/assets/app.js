@@ -294,15 +294,15 @@ async function loadHistory(sourceKey, type) {
   }
 }
 
-async function renderBehtarino() {
+async function renderDirectorySource(sourceKey, displayName) {
   setHeader(
     "",
-    "بهترینو",
+    displayName,
     "",
   );
-  content.innerHTML = `<div class="loading">در حال دریافت اطلاعات بهترینو…</div>`;
+  content.innerHTML = `<div class="loading">در حال دریافت اطلاعات ${escapeHtml(displayName)}…</div>`;
   try {
-    const source = await request("/sources/behtarino");
+    const source = await request(`/sources/${sourceKey}`);
     const input = source.input || { keyword: "", city: "" };
     content.innerHTML = `
       <div class="behtarino-layout">
@@ -314,16 +314,16 @@ async function renderBehtarino() {
             </div>
             <span class="status-pill">${statusLabel(source.status)}</span>
           </div>
-          <form id="behtarino-form">
+          <form id="directory-source-form">
             <div class="form-grid">
               <label>
                 Keyword
-                <input id="behtarino-keyword" value="${escapeHtml(input.keyword)}"
+                <input id="directory-source-keyword" value="${escapeHtml(input.keyword)}"
                   minlength="2" maxlength="120" required />
               </label>
               <label>
                 شهر
-                <input id="behtarino-city" value="${escapeHtml(input.city)}"
+                <input id="directory-source-city" value="${escapeHtml(input.city)}"
                   minlength="2" maxlength="80" required />
               </label>
             </div>
@@ -394,7 +394,7 @@ async function renderBehtarino() {
               <button id="confirm-export" class="button primary" type="button">
                 دانلود و ثبت تحویل
               </button>
-              <button id="download-all-behtarino" class="button secondary" type="button">
+              <button id="download-all-${sourceKey}" class="button secondary" type="button">
                 دانلود کل دیتابیس
               </button>
             </div>
@@ -410,38 +410,41 @@ async function renderBehtarino() {
       </div>
     `;
     document
-      .querySelector("#behtarino-form")
-      .addEventListener("submit", saveBehtarino);
+      .querySelector("#directory-source-form")
+      .addEventListener("submit", (event) =>
+        saveDirectorySource(event, sourceKey, displayName));
     document.querySelectorAll("[data-history]").forEach((button) => {
       button.addEventListener("click", () => {
         document
           .querySelectorAll("[data-history]")
           .forEach((item) => item.classList.remove("active"));
         button.classList.add("active");
-        loadHistory("behtarino", button.dataset.history);
+        loadHistory(sourceKey, button.dataset.history);
       });
     });
-    loadHistory("behtarino", "settings");
+    loadHistory(sourceKey, "settings");
     document
       .querySelector("#apply-export-filter")
-      .addEventListener("click", loadBehtarinoExport);
+      .addEventListener("click", () => loadDirectoryExport(sourceKey));
     document
       .querySelector("#preview-export")
-      .addEventListener("click", () => downloadBehtarinoExport(false));
+      .addEventListener("click", () =>
+        downloadDirectoryExport(sourceKey, displayName, false));
     document
       .querySelector("#confirm-export")
-      .addEventListener("click", () => downloadBehtarinoExport(true));
+      .addEventListener("click", () =>
+        downloadDirectoryExport(sourceKey, displayName, true));
     document
-      .querySelector("#download-all-behtarino")
-      .addEventListener("click", () => downloadAllContacts("behtarino"));
-    loadBehtarinoExport();
-    loadBehtarinoExportHistory();
+      .querySelector(`#download-all-${sourceKey}`)
+      .addEventListener("click", () => downloadAllContacts(sourceKey));
+    loadDirectoryExport(sourceKey);
+    loadDirectoryExportHistory(sourceKey);
   } catch (error) {
     content.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
   }
 }
 
-async function loadBehtarinoExport() {
+async function loadDirectoryExport(sourceKey) {
   const keyword = document.querySelector("#export-keyword").value.trim();
   const city = document.querySelector("#export-city").value.trim();
   if (keyword.length < 2 || city.length < 2) {
@@ -453,7 +456,7 @@ async function loadBehtarinoExport() {
   try {
     const params = new URLSearchParams({ keyword, city });
     const summary = await request(
-      `/sources/behtarino/exports/summary?${params.toString()}`,
+      `/sources/${sourceKey}/exports/summary?${params.toString()}`,
     );
     const values = [
       summary.latest_contact_no,
@@ -473,11 +476,11 @@ async function loadBehtarinoExport() {
   }
 }
 
-async function loadBehtarinoExportHistory() {
+async function loadDirectoryExportHistory(sourceKey) {
   const holder = document.querySelector("#export-history");
   if (!holder) return;
   try {
-    const data = await request("/sources/behtarino/exports/history");
+    const data = await request(`/sources/${sourceKey}/exports/history`);
     holder.innerHTML = data.items.length
       ? data.items
           .map(
@@ -497,7 +500,7 @@ async function loadBehtarinoExportHistory() {
   }
 }
 
-async function downloadBehtarinoExport(confirmDelivery) {
+async function downloadDirectoryExport(sourceKey, displayName, confirmDelivery) {
   const payload = {
     keyword: document.querySelector("#export-keyword").value.trim(),
     city: document.querySelector("#export-city").value.trim(),
@@ -518,14 +521,14 @@ async function downloadBehtarinoExport(confirmDelivery) {
   buttons.forEach((button) => (button.disabled = true));
   try {
     const blob = await downloadRequest(
-      "/sources/behtarino/exports/xlsx",
+      `/sources/${sourceKey}/exports/xlsx`,
       payload,
     );
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download =
-      `behtarino-contacts-${payload.from_contact_no}-to-${payload.to_contact_no}.xlsx`;
+      `${sourceKey}-contacts-${payload.from_contact_no}-to-${payload.to_contact_no}.xlsx`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
@@ -536,8 +539,8 @@ async function downloadBehtarinoExport(confirmDelivery) {
         : "فایل آزمایشی دانلود شد؛ وضعیت تحویل تغییر نکرد.",
     );
     if (confirmDelivery) {
-      await loadBehtarinoExport();
-      await loadBehtarinoExportHistory();
+      await loadDirectoryExport(sourceKey);
+      await loadDirectoryExportHistory(sourceKey);
     }
   } catch (error) {
     showToast(error.message, true);
@@ -546,20 +549,20 @@ async function downloadBehtarinoExport(confirmDelivery) {
   }
 }
 
-async function saveBehtarino(event) {
+async function saveDirectorySource(event, sourceKey, displayName) {
   event.preventDefault();
   const form = event.currentTarget;
   const button = form.querySelector("button[type='submit']");
   button.disabled = true;
   try {
-    const data = await request("/sources/behtarino/input", {
+    const data = await request(`/sources/${sourceKey}/input`, {
       method: "PUT",
       body: JSON.stringify({
-        keyword: document.querySelector("#behtarino-keyword").value,
-        city: document.querySelector("#behtarino-city").value,
+        keyword: document.querySelector("#directory-source-keyword").value,
+        city: document.querySelector("#directory-source-city").value,
       }),
     });
-    showToast("Keyword و شهر بهترینو با موفقیت ذخیره شدند.");
+    showToast(`Keyword و شهر ${displayName} با موفقیت ذخیره شدند.`);
     form.querySelector(".form-hint").textContent =
       `آخرین تغییر: ${formatDate(data.input.updated_at)}`;
   } catch (error) {
@@ -567,6 +570,14 @@ async function saveBehtarino(event) {
   } finally {
     button.disabled = false;
   }
+}
+
+async function renderBehtarino() {
+  return renderDirectorySource("behtarino", "بهترینو");
+}
+
+async function renderAvval() {
+  return renderDirectorySource("avval", "کتاب اول");
 }
 
 async function renderTakhfifan() {
@@ -1607,6 +1618,7 @@ async function switchView(view) {
   });
   if (view === "overview") return renderOverview();
   if (view === "behtarino") return renderBehtarino();
+  if (view === "avval") return renderAvval();
   if (view === "takhfifan") return renderTakhfifan();
   if (view === "senfyab") return renderSenfyab();
   if (view === "foodkeys") return renderFoodkeys();
