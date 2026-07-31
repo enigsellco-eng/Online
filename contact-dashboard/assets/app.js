@@ -243,12 +243,13 @@ function historyItem(item, type, sourceKey = "") {
   const category = item.category || settings.category_slug || "";
   const subcategory = item.subcategory || "";
   const versionLabel = item.is_current ? "فعلی" : "قبلی";
-  const title = sourceKey === "senfyab"
-    ? item.name || "تنظیمات صنفیاب"
+  const classifiedSource = ["senfyab", "omdbox"].includes(sourceKey);
+  const title = classifiedSource
+    ? item.name || "تنظیمات منبع"
     : sourceKey === "foodkeys"
       ? item.query || "دسته‌بندی فودکیز"
       : item.query || "بدون Keyword";
-  const details = sourceKey === "senfyab"
+  const details = classifiedSource
     ? [
         category ? `دسته‌بندی: ${escapeHtml(category)}` : "",
         subcategory ? `زیردسته: ${escapeHtml(subcategory)}` : "",
@@ -847,11 +848,11 @@ async function downloadTakhfifanExport(confirmDelivery) {
   }
 }
 
-async function renderSenfyab() {
-  setHeader("", "صنفیاب", "");
-  content.innerHTML = `<div class="loading">در حال دریافت اطلاعات صنفیاب…</div>`;
+async function renderClassifiedSource(sourceKey, displayName, subcategoryRequired) {
+  setHeader("", displayName, "");
+  content.innerHTML = `<div class="loading">در حال دریافت اطلاعات ${escapeHtml(displayName)}…</div>`;
   try {
-    const source = await request("/sources/senfyab");
+    const source = await request(`/sources/${sourceKey}`);
     const input = source.input || { name: "", category: "", subcategory: "" };
     content.innerHTML = `
       <div class="behtarino-layout">
@@ -861,25 +862,25 @@ async function renderSenfyab() {
               <div><h2>ورودی‌های استخراج</h2></div>
               <span class="status-pill">${statusLabel(source.status)}</span>
             </div>
-            <form id="senfyab-form">
+            <form id="${sourceKey}-form">
               <div class="form-grid">
                 <label>
                   نام جستجو
-                  <input id="senfyab-name"
+                  <input id="${sourceKey}-name"
                     value="${escapeHtml(input.name || "")}"
                     minlength="1" maxlength="200" required />
                 </label>
                 <label>
                   دسته‌بندی
-                  <input id="senfyab-category"
+                  <input id="${sourceKey}-category"
                     value="${escapeHtml(input.category)}"
                     minlength="2" maxlength="120" required />
                 </label>
                 <label>
                   زیردسته
-                  <input id="senfyab-subcategory"
+                  <input id="${sourceKey}-subcategory"
                     value="${escapeHtml(input.subcategory)}"
-                    minlength="2" maxlength="160" required />
+                    maxlength="160" ${subcategoryRequired ? 'minlength="1" required' : ''} />
                 </label>
               </div>
               <div class="form-actions">
@@ -903,10 +904,10 @@ async function renderSenfyab() {
         </div>
         <section class="panel export-panel">
           <div class="panel-header">
-            <div><h2>خروجی Excel مستقل صنفیاب</h2></div>
-            <span id="senfyab-export-new-badge" class="status-pill">در حال بررسی…</span>
+            <div><h2>خروجی Excel مستقل ${escapeHtml(displayName)}</h2></div>
+            <span id="${sourceKey}-export-new-badge" class="status-pill">در حال بررسی…</span>
           </div>
-          <div id="senfyab-export-metrics" class="export-metrics">
+          <div id="${sourceKey}-export-metrics" class="export-metrics">
             <div><span>آخرین کانتکت</span><strong>—</strong></div>
             <div><span>آخرین تحویل این فیلتر</span><strong>—</strong></div>
             <div><span>شروع پیشنهادی</span><strong>—</strong></div>
@@ -915,20 +916,20 @@ async function renderSenfyab() {
           <div class="export-grid">
             <div class="export-controls">
               <div class="form-grid">
-                ${senfyabFields("senfyab-export", input)}
-                <label>از شماره<input id="senfyab-export-from" type="number" min="1" value="1" /></label>
-                <label>تا شماره<input id="senfyab-export-to" type="number" min="1" value="1" /></label>
+                ${classifiedFields(`${sourceKey}-export`, input, subcategoryRequired)}
+                <label>از شماره<input id="${sourceKey}-export-from" type="number" min="1" value="1" /></label>
+                <label>تا شماره<input id="${sourceKey}-export-to" type="number" min="1" value="1" /></label>
               </div>
               <div class="form-actions export-actions">
-                <button id="apply-senfyab-export-filter" class="button secondary" type="button">اعمال فیلتر</button>
-                <button id="preview-senfyab-export" class="button secondary" type="button">دانلود آزمایشی</button>
-                <button id="confirm-senfyab-export" class="button primary" type="button">دانلود و ثبت تحویل</button>
-                <button id="download-all-senfyab" class="button secondary" type="button">دانلود کل دیتابیس</button>
+                <button id="apply-${sourceKey}-export-filter" class="button secondary" type="button">اعمال فیلتر</button>
+                <button id="preview-${sourceKey}-export" class="button secondary" type="button">دانلود آزمایشی</button>
+                <button id="confirm-${sourceKey}-export" class="button primary" type="button">دانلود و ثبت تحویل</button>
+                <button id="download-all-${sourceKey}" class="button secondary" type="button">دانلود کل دیتابیس</button>
               </div>
             </div>
             <div>
-              <h3 class="export-history-title">تاریخچه تحویل صنفیاب</h3>
-              <div id="senfyab-export-history" class="history-list compact">
+              <h3 class="export-history-title">تاریخچه تحویل ${escapeHtml(displayName)}</h3>
+              <div id="${sourceKey}-export-history" class="history-list compact">
                 <div class="loading">در حال دریافت تاریخچه…</div>
               </div>
             </div>
@@ -936,63 +937,73 @@ async function renderSenfyab() {
         </section>
       </div>`;
     document
-      .querySelector("#senfyab-form")
-      .addEventListener("submit", saveSenfyab);
+      .querySelector(`#${sourceKey}-form`)
+      .addEventListener("submit", (event) =>
+        saveClassifiedSource(event, sourceKey, displayName, subcategoryRequired));
     document.querySelectorAll("[data-history]").forEach((button) => {
       button.addEventListener("click", () => {
         document.querySelectorAll("[data-history]").forEach((item) =>
           item.classList.remove("active"));
         button.classList.add("active");
-        loadHistory("senfyab", button.dataset.history);
+        loadHistory(sourceKey, button.dataset.history);
       });
     });
-    loadHistory("senfyab", "settings");
-    document.querySelector("#apply-senfyab-export-filter")
-      .addEventListener("click", loadSenfyabExport);
-    document.querySelector("#preview-senfyab-export")
-      .addEventListener("click", () => downloadSenfyabExport(false));
-    document.querySelector("#confirm-senfyab-export")
-      .addEventListener("click", () => downloadSenfyabExport(true));
-    document.querySelector("#download-all-senfyab")
-      .addEventListener("click", () => downloadAllContacts("senfyab"));
-    loadSenfyabExport();
-    loadSenfyabExportHistory();
+    loadHistory(sourceKey, "settings");
+    document.querySelector(`#apply-${sourceKey}-export-filter`)
+      .addEventListener("click", () => loadClassifiedExport(sourceKey, displayName, subcategoryRequired));
+    document.querySelector(`#preview-${sourceKey}-export`)
+      .addEventListener("click", () => downloadClassifiedExport(sourceKey, displayName, subcategoryRequired, false));
+    document.querySelector(`#confirm-${sourceKey}-export`)
+      .addEventListener("click", () => downloadClassifiedExport(sourceKey, displayName, subcategoryRequired, true));
+    document.querySelector(`#download-all-${sourceKey}`)
+      .addEventListener("click", () => downloadAllContacts(sourceKey));
+    loadClassifiedExport(sourceKey, displayName, subcategoryRequired);
+    loadClassifiedExportHistory(sourceKey);
   } catch (error) {
     content.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
   }
 }
 
-async function saveSenfyab(event) {
+async function saveClassifiedSource(event, sourceKey, displayName, subcategoryRequired) {
   event.preventDefault();
   const form = event.currentTarget;
   const button = form.querySelector("button[type='submit']");
   button.disabled = true;
   try {
-    const data = await request("/sources/senfyab/input", {
+    const data = await request(`/sources/${sourceKey}/input`, {
       method: "PUT",
       body: JSON.stringify({
-        name: document.querySelector("#senfyab-name").value.trim(),
-        category: document.querySelector("#senfyab-category").value.trim(),
+        name: document.querySelector(`#${sourceKey}-name`).value.trim(),
+        category: document.querySelector(`#${sourceKey}-category`).value.trim(),
         subcategory: document
-          .querySelector("#senfyab-subcategory").value.trim(),
+          .querySelector(`#${sourceKey}-subcategory`).value.trim(),
       }),
     });
-    showToast("ورودی‌های صنفیاب با موفقیت ذخیره شدند.");
+    showToast(`ورودی‌های ${displayName} با موفقیت ذخیره شدند.`);
     form.querySelector(".form-hint").textContent =
       `آخرین تغییر: ${formatDate(data.input.updated_at)}`;
-    const saved = data.input || senfyabValues("senfyab");
+    const saved = data.input || classifiedValues(sourceKey, subcategoryRequired);
     ["name", "category", "subcategory"].forEach((field) => {
-      const exportInput = document.querySelector(`#senfyab-export-${field}`);
+      const exportInput = document.querySelector(`#${sourceKey}-export-${field}`);
       if (exportInput) exportInput.value = saved[field] || "";
     });
-    await loadSenfyabExport();
-    await loadHistory("senfyab", "settings");
+    await loadClassifiedExport(sourceKey, displayName, subcategoryRequired);
+    await loadHistory(sourceKey, "settings");
   } catch (error) {
     showToast(error.message, true);
   } finally {
     button.disabled = false;
   }
 }
+
+async function renderSenfyab() {
+  return renderClassifiedSource("senfyab", "صنفیاب", true);
+}
+
+async function renderOmdbox() {
+  return renderClassifiedSource("omdbox", "عمده‌باکس", false);
+}
+
 
 async function renderFoodkeys() {
   setHeader("", "فودکیز", "");
@@ -1233,14 +1244,14 @@ async function downloadFoodkeysExport(confirmDelivery) {
   }
 }
 
-function senfyabFields(prefix, input) {
+function classifiedFields(prefix, input, subcategoryRequired) {
   return `
     <label>نام جستجو<input id="${prefix}-name" value="${escapeHtml(input.name)}" minlength="1" maxlength="200" required /></label>
     <label>دسته‌بندی<input id="${prefix}-category" value="${escapeHtml(input.category)}" minlength="1" maxlength="120" required /></label>
-    <label>زیردسته<input id="${prefix}-subcategory" value="${escapeHtml(input.subcategory)}" minlength="1" maxlength="160" required /></label>`;
+    <label>زیردسته<input id="${prefix}-subcategory" value="${escapeHtml(input.subcategory)}" maxlength="160" ${subcategoryRequired ? 'minlength="1" required' : ''} /></label>`;
 }
 
-function senfyabValues(prefix) {
+function classifiedValues(prefix, subcategoryRequired) {
   return {
     name: document.querySelector(`#${prefix}-name`).value.trim(),
     category: document.querySelector(`#${prefix}-category`).value.trim(),
@@ -1248,15 +1259,15 @@ function senfyabValues(prefix) {
   };
 }
 
-async function loadSenfyabExport() {
-  const filters = senfyabValues("senfyab-export");
-  if (Object.values(filters).some((value) => value.length < 1)) {
-    showToast("فیلترهای خروجی صنفیاب را کامل وارد کنید.", true);
+async function loadClassifiedExport(sourceKey, displayName, subcategoryRequired) {
+  const filters = classifiedValues(`${sourceKey}-export`, subcategoryRequired);
+  if (!filters.name || !filters.category || (subcategoryRequired && !filters.subcategory)) {
+    showToast(`فیلترهای خروجی ${displayName} را کامل وارد کنید.`, true);
     return;
   }
   try {
     const summary = await request(
-      `/sources/senfyab/exports/summary?${new URLSearchParams(filters).toString()}`,
+      `/sources/${sourceKey}/exports/summary?${new URLSearchParams(filters).toString()}`,
     );
     const values = [
       summary.latest_contact_no,
@@ -1264,25 +1275,25 @@ async function loadSenfyabExport() {
       summary.suggested_from_contact_no,
       summary.new_count,
     ];
-    document.querySelectorAll("#senfyab-export-metrics strong")
+    document.querySelectorAll(`#${sourceKey}-export-metrics strong`)
       .forEach((element, index) => {
         element.textContent = formatNumber(values[index]);
       });
-    document.querySelector("#senfyab-export-new-badge").textContent =
+    document.querySelector(`#${sourceKey}-export-new-badge`).textContent =
       `${formatNumber(summary.new_count)} جدید`;
-    document.querySelector("#senfyab-export-from").value =
+    document.querySelector(`#${sourceKey}-export-from`).value =
       summary.suggested_from_contact_no;
-    document.querySelector("#senfyab-export-to").value =
+    document.querySelector(`#${sourceKey}-export-to`).value =
       summary.latest_contact_no;
   } catch (error) {
     showToast(error.message, true);
   }
 }
 
-async function loadSenfyabExportHistory() {
-  const holder = document.querySelector("#senfyab-export-history");
+async function loadClassifiedExportHistory(sourceKey) {
+  const holder = document.querySelector(`#${sourceKey}-export-history`);
   try {
-    const data = await request("/sources/senfyab/exports/history");
+    const data = await request(`/sources/${sourceKey}/exports/history`);
     holder.innerHTML = data.items.length
       ? data.items.map((item) => `
           <article class="history-item">
@@ -1298,45 +1309,45 @@ async function loadSenfyabExportHistory() {
   }
 }
 
-async function downloadSenfyabExport(confirmDelivery) {
-  const filters = senfyabValues("senfyab-export");
+async function downloadClassifiedExport(sourceKey, displayName, subcategoryRequired, confirmDelivery) {
+  const filters = classifiedValues(`${sourceKey}-export`, subcategoryRequired);
   const payload = {
     ...filters,
     from_contact_no: Number(
-      document.querySelector("#senfyab-export-from").value,
+      document.querySelector(`#${sourceKey}-export-from`).value,
     ),
     to_contact_no: Number(
-      document.querySelector("#senfyab-export-to").value,
+      document.querySelector(`#${sourceKey}-export-to`).value,
     ),
     confirm_delivery: confirmDelivery,
   };
   if (
-    Object.values(filters).some((value) => value.length < 1) ||
+    !filters.name || !filters.category || (subcategoryRequired && !filters.subcategory) ||
     payload.from_contact_no < 1 ||
     payload.to_contact_no < payload.from_contact_no
   ) {
-    showToast("فیلتر یا بازه خروجی صنفیاب معتبر نیست.", true);
+    showToast(`فیلتر یا بازه خروجی ${displayName} معتبر نیست.`, true);
     return;
   }
   const buttons = document.querySelectorAll(".export-actions button");
   buttons.forEach((button) => (button.disabled = true));
   try {
-    const blob = await downloadRequest("/sources/senfyab/exports/xlsx", payload);
+    const blob = await downloadRequest(`/sources/${sourceKey}/exports/xlsx`, payload);
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download =
-      `senfyab-contacts-${payload.from_contact_no}-to-${payload.to_contact_no}.xlsx`;
+      `${sourceKey}-contacts-${payload.from_contact_no}-to-${payload.to_contact_no}.xlsx`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
     showToast(confirmDelivery
-      ? "فایل صنفیاب دانلود و بازه به‌عنوان تحویل‌شده ثبت شد."
-      : "فایل آزمایشی صنفیاب دانلود شد؛ وضعیت تحویل تغییر نکرد.");
+      ? `فایل ${displayName} دانلود و بازه به‌عنوان تحویل‌شده ثبت شد.`
+      : `فایل آزمایشی ${displayName} دانلود شد؛ وضعیت تحویل تغییر نکرد.`);
     if (confirmDelivery) {
-      await loadSenfyabExport();
-      await loadSenfyabExportHistory();
+      await loadClassifiedExport(sourceKey, displayName, subcategoryRequired);
+      await loadClassifiedExportHistory(sourceKey);
     }
   } catch (error) {
     showToast(error.message, true);
@@ -1621,6 +1632,7 @@ async function switchView(view) {
   if (view === "avval") return renderAvval();
   if (view === "takhfifan") return renderTakhfifan();
   if (view === "senfyab") return renderSenfyab();
+  if (view === "omdbox") return renderOmdbox();
   if (view === "foodkeys") return renderFoodkeys();
   if (view === "divar") return renderDivar();
   renderLocked(view);

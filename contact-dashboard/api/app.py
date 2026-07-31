@@ -35,6 +35,7 @@ AVVAL_API = os.getenv("MARKETING_AVVAL_API", "http://127.0.0.1:8081")
 TAKHFIFAN_API = os.getenv("MARKETING_TAKHFIFAN_API", "http://127.0.0.1:8051")
 DIVAR_API = os.getenv("MARKETING_DIVAR_API", "http://127.0.0.1:8032")
 SENFYAB_API = os.getenv("MARKETING_SENFYAB_API", "http://127.0.0.1:8061")
+OMDBOX_API = os.getenv("MARKETING_OMDBOX_API", "http://127.0.0.1:8091")
 FOODKEYS_API = os.getenv("MARKETING_FOODKEYS_API", "http://127.0.0.1:8071")
 TOROB_API = os.getenv("MARKETING_TOROB_API", "http://127.0.0.1:8040")
 UPSTREAM_TIMEOUT = float(os.getenv("MARKETING_UPSTREAM_TIMEOUT_SECONDS", "5"))
@@ -196,6 +197,12 @@ class SenfyabInput(BaseModel):
     subcategory: str = Field(min_length=1, max_length=160)
 
 
+class OmdboxInput(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    category: str = Field(min_length=1, max_length=120)
+    subcategory: str = Field(default="", max_length=160)
+
+
 class FoodkeysInput(BaseModel):
     category: str = Field(
         min_length=1,
@@ -211,6 +218,12 @@ class FoodkeysExportInput(FoodkeysInput):
 
 
 class SenfyabExportInput(SenfyabInput):
+    from_contact_no: int = Field(gt=0)
+    to_contact_no: int = Field(gt=0)
+    confirm_delivery: bool = False
+
+
+class OmdboxExportInput(OmdboxInput):
     from_contact_no: int = Field(gt=0)
     to_contact_no: int = Field(gt=0)
     confirm_delivery: bool = False
@@ -323,6 +336,7 @@ async def source_summary(source_key: str) -> dict[str, Any]:
         "takhfifan": TAKHFIFAN_API,
         "divar": DIVAR_API,
         "senfyab": SENFYAB_API,
+        "omdbox": OMDBOX_API,
         "foodkeys": FOODKEYS_API,
     }
     names = {
@@ -331,6 +345,7 @@ async def source_summary(source_key: str) -> dict[str, Any]:
         "takhfifan": "تخفیفان",
         "divar": "دیوار",
         "senfyab": "صنفیاب",
+        "omdbox": "عمده‌باکس",
         "foodkeys": "فودکیز",
     }
     base = bases[source_key]
@@ -346,7 +361,7 @@ async def source_summary(source_key: str) -> dict[str, Any]:
             "name": name,
             "available": True,
             "configuration_enabled": source_key
-            in {"behtarino", "avval", "takhfifan", "divar", "senfyab", "foodkeys"},
+            in {"behtarino", "avval", "takhfifan", "divar", "senfyab", "omdbox", "foodkeys"},
             "contacts": counts.get("contacts", 0),
             "records": counts.get("listings", 0),
             "status": runs[0].get("status", "idle") if runs else "idle",
@@ -479,6 +494,7 @@ async def overview(_: dict[str, Any] = Depends(current_session)) -> dict[str, An
             source_summary("torob"),
             source_summary("divar"),
             source_summary("senfyab"),
+            source_summary("omdbox"),
             source_summary("foodkeys"),
         )
     )
@@ -496,12 +512,12 @@ async def source_detail(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
     if source_key not in {
-        "behtarino", "avval", "takhfifan", "torob", "divar", "senfyab", "foodkeys"
+        "behtarino", "avval", "takhfifan", "torob", "divar", "senfyab", "omdbox", "foodkeys"
     }:
         raise HTTPException(404, "منبع پیدا نشد.")
     summary = await source_summary(source_key)
     if source_key in {
-        "behtarino", "avval", "takhfifan", "divar", "senfyab", "foodkeys"
+        "behtarino", "avval", "takhfifan", "divar", "senfyab", "omdbox", "foodkeys"
     } and summary["available"]:
         base = {
             "behtarino": BEHTARINO_API,
@@ -509,6 +525,7 @@ async def source_detail(
             "takhfifan": TAKHFIFAN_API,
             "divar": DIVAR_API,
             "senfyab": SENFYAB_API,
+            "omdbox": OMDBOX_API,
             "foodkeys": FOODKEYS_API,
         }[source_key]
         jobs = await upstream_json(
@@ -543,7 +560,7 @@ async def run_history(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
     if source_key not in {
-        "behtarino", "avval", "takhfifan", "torob", "divar", "senfyab", "foodkeys"
+        "behtarino", "avval", "takhfifan", "torob", "divar", "senfyab", "omdbox", "foodkeys"
     }:
         raise HTTPException(404, "منبع پیدا نشد.")
     summary = await source_summary(source_key)
@@ -555,7 +572,7 @@ async def settings_history(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
     if source_key not in {
-        "behtarino", "avval", "takhfifan", "torob", "divar", "senfyab", "foodkeys"
+        "behtarino", "avval", "takhfifan", "torob", "divar", "senfyab", "omdbox", "foodkeys"
     }:
         raise HTTPException(404, "منبع پیدا نشد.")
     if source_key == "torob":
@@ -566,6 +583,7 @@ async def settings_history(
         "takhfifan": TAKHFIFAN_API,
         "divar": DIVAR_API,
         "senfyab": SENFYAB_API,
+        "omdbox": OMDBOX_API,
         "foodkeys": FOODKEYS_API,
     }[source_key]
     jobs = await upstream_json("GET", f"{base}/api/sources/{source_key}/jobs")
@@ -648,6 +666,90 @@ async def update_senfyab_input(
                 session["user_id"],
                 "update_marketing_input",
                 "senfyab",
+                json.dumps(before, ensure_ascii=False),
+                json.dumps(values, ensure_ascii=False),
+                client_ip(request),
+                iso_now(),
+            ),
+        )
+    return {
+        "input": {
+            "name": updated.get("name") or values["name"],
+            "category": updated.get("category") or values["category"],
+            "subcategory": updated.get("subcategory") or values["subcategory"],
+            "updated_at": updated.get("updated_at"),
+        }
+    }
+
+
+@app.put("/api/marketing/sources/omdbox/input")
+async def update_omdbox_input(
+    payload: OmdboxInput,
+    request: Request,
+    session: dict[str, Any] = Depends(require_csrf),
+) -> dict[str, Any]:
+    values = {
+        key: " ".join(value.split())
+        for key, value in payload.model_dump().items()
+    }
+    jobs = await upstream_json("GET", f"{OMDBOX_API}/api/sources/omdbox/jobs")
+    before: dict[str, Any] = {}
+    if jobs:
+        job = jobs[0]
+        before = {
+            "name": job.get("name") or "",
+            "category": job.get("category") or "",
+            "subcategory": job.get("subcategory") or "",
+        }
+        try:
+            settings = json.loads(job.get("settings_json") or "{}")
+        except json.JSONDecodeError:
+            settings = {}
+        updated = await upstream_json(
+            "PUT",
+            f"{OMDBOX_API}/api/sources/omdbox/jobs/{job['id']}",
+            {
+                "name": values["name"],
+                "city": job.get("city") or "",
+                "category": values["category"],
+                "subcategory": values["subcategory"],
+                "query": job.get("query") or "",
+                "enabled": bool(job.get("enabled", True)),
+                "schedule": job.get("schedule") or "batch",
+                "result_limit": job.get("result_limit") or 24,
+                "destination_sheet": job.get("destination_sheet") or "OmdBox",
+                "settings": settings,
+            },
+        )
+    else:
+        updated = await upstream_json(
+            "POST",
+            f"{OMDBOX_API}/api/sources/omdbox/jobs",
+            {
+                "name": values["name"],
+                "source_key": "omdbox",
+                "city": "",
+                "category": values["category"],
+                "subcategory": values["subcategory"],
+                "query": "",
+                "enabled": True,
+                "schedule": "batch",
+                "result_limit": 24,
+                "destination_sheet": "OmdBox",
+                "settings": {},
+            },
+        )
+    with connect() as db:
+        db.execute(
+            """
+            INSERT INTO audit_log
+                (user_id,action,source_key,before_json,after_json,remote_ip,created_at)
+            VALUES (?,?,?,?,?,?,?)
+            """,
+            (
+                session["user_id"],
+                "update_marketing_input",
+                "omdbox",
                 json.dumps(before, ensure_ascii=False),
                 json.dumps(values, ensure_ascii=False),
                 client_ip(request),
@@ -1306,6 +1408,89 @@ async def senfyab_export_xlsx(
     )
 
 
+def omdbox_filters(values: dict[str, Any]) -> dict[str, str]:
+    return {
+        "name": " ".join(values["name"].split()),
+        "category": " ".join(values["category"].split()),
+        "subcategory": " ".join(values["subcategory"].split()),
+    }
+
+
+@app.get("/api/marketing/sources/omdbox/exports/summary")
+async def omdbox_export_summary(
+    name: str,
+    category: str,
+    subcategory: str = "",
+    _: dict[str, Any] = Depends(current_session),
+) -> dict[str, Any]:
+    filters = urlencode(
+        omdbox_filters(
+            {"name": name, "category": category, "subcategory": subcategory}
+        )
+    )
+    return await upstream_json(
+        "GET", f"{OMDBOX_API}/api/sources/omdbox/exports/summary?{filters}"
+    )
+
+
+@app.get("/api/marketing/sources/omdbox/exports/history")
+async def omdbox_export_history(
+    _: dict[str, Any] = Depends(current_session),
+) -> dict[str, Any]:
+    items = await upstream_json(
+        "GET", f"{OMDBOX_API}/api/sources/omdbox/exports/history?limit=30"
+    )
+    return {"items": items}
+
+
+@app.post("/api/marketing/sources/omdbox/exports/xlsx")
+async def omdbox_export_xlsx(
+    payload: OmdboxExportInput,
+    request: Request,
+    session: dict[str, Any] = Depends(require_csrf),
+) -> Response:
+    if payload.to_contact_no < payload.from_contact_no:
+        raise HTTPException(400, "بازه شماره کانتکت معتبر نیست.")
+    upstream = await upstream_file(
+        "POST",
+        f"{OMDBOX_API}/api/sources/omdbox/exports/xlsx",
+        {
+            **omdbox_filters(payload.model_dump()),
+            "from_contact_no": payload.from_contact_no,
+            "to_contact_no": payload.to_contact_no,
+            "confirm_delivery": payload.confirm_delivery,
+        },
+    )
+    if payload.confirm_delivery:
+        with connect() as db:
+            db.execute(
+                """
+                INSERT INTO audit_log
+                    (user_id,action,source_key,before_json,after_json,remote_ip,created_at)
+                VALUES (?,?,?,?,?,?,?)
+                """,
+                (
+                    session["user_id"],
+                    "deliver_contact_export",
+                    "omdbox",
+                    None,
+                    json.dumps(payload.model_dump(), ensure_ascii=False),
+                    client_ip(request),
+                    iso_now(),
+                ),
+            )
+    return Response(
+        content=upstream.content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": upstream.headers.get(
+                "content-disposition", 'attachment; filename="omdbox-contacts.xlsx"'
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
 def takhfifan_filters(values: dict[str, Any]) -> dict[str, str]:
     return {
         "query": " ".join(values["keyword"].split()),
@@ -1589,6 +1774,28 @@ async def senfyab_export_all_xlsx(
             "Content-Disposition": upstream.headers.get(
                 "content-disposition",
                 'attachment; filename="senfyab-all-contacts.xlsx"',
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.post("/api/marketing/sources/omdbox/exports/all/xlsx")
+async def omdbox_export_all_xlsx(
+    _: dict[str, Any] = Depends(require_csrf),
+) -> Response:
+    upstream = await upstream_file(
+        "POST",
+        f"{OMDBOX_API}/api/sources/omdbox/exports/all/xlsx",
+        {},
+    )
+    return Response(
+        content=upstream.content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": upstream.headers.get(
+                "content-disposition",
+                'attachment; filename="omdbox-all-contacts.xlsx"',
             ),
             "Cache-Control": "no-store",
         },

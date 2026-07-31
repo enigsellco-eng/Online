@@ -318,6 +318,11 @@ nav {
   color: #fff;
 }
 
+.source-badge.omdbox {
+  background: #2563eb;
+  color: #fff;
+}
+
 .source-badge.foodkeys {
   background: #d97706;
   color: #fff;
