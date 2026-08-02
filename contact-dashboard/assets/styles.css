@@ -332,6 +332,11 @@ nav {
   background: #a5453e;
 }
 
+.source-badge.sheypoor {
+  background: #f59e0b;
+  color: #fff;
+}
+
 .soon {
   margin-right: auto;
   padding: 4px 7px;

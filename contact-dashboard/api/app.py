@@ -34,6 +34,7 @@ BEHTARINO_API = os.getenv("MARKETING_BEHTARINO_API", "http://127.0.0.1:8031")
 AVVAL_API = os.getenv("MARKETING_AVVAL_API", "http://127.0.0.1:8081")
 TAKHFIFAN_API = os.getenv("MARKETING_TAKHFIFAN_API", "http://127.0.0.1:8051")
 DIVAR_API = os.getenv("MARKETING_DIVAR_API", "http://127.0.0.1:8032")
+SHEYPOOR_API = os.getenv("MARKETING_SHEYPOOR_API", "http://127.0.0.1:8101")
 SENFYAB_API = os.getenv("MARKETING_SENFYAB_API", "http://127.0.0.1:8061")
 OMDBOX_API = os.getenv("MARKETING_OMDBOX_API", "http://127.0.0.1:8091")
 FOODKEYS_API = os.getenv("MARKETING_FOODKEYS_API", "http://127.0.0.1:8071")
@@ -191,6 +192,16 @@ class DivarExportInput(DivarInput):
     confirm_delivery: bool = False
 
 
+class SheypoorInput(DivarInput):
+    pass
+
+
+class SheypoorExportInput(SheypoorInput):
+    from_contact_no: int = Field(gt=0)
+    to_contact_no: int = Field(gt=0)
+    confirm_delivery: bool = False
+
+
 class SenfyabInput(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     category: str = Field(min_length=1, max_length=120)
@@ -335,6 +346,7 @@ async def source_summary(source_key: str) -> dict[str, Any]:
         "avval": AVVAL_API,
         "takhfifan": TAKHFIFAN_API,
         "divar": DIVAR_API,
+        "sheypoor": SHEYPOOR_API,
         "senfyab": SENFYAB_API,
         "omdbox": OMDBOX_API,
         "foodkeys": FOODKEYS_API,
@@ -344,6 +356,7 @@ async def source_summary(source_key: str) -> dict[str, Any]:
         "avval": "کتاب اول",
         "takhfifan": "تخفیفان",
         "divar": "دیوار",
+        "sheypoor": "شیپور",
         "senfyab": "صنفیاب",
         "omdbox": "عمده‌باکس",
         "foodkeys": "فودکیز",
@@ -361,7 +374,7 @@ async def source_summary(source_key: str) -> dict[str, Any]:
             "name": name,
             "available": True,
             "configuration_enabled": source_key
-            in {"behtarino", "avval", "takhfifan", "divar", "senfyab", "omdbox", "foodkeys"},
+            in {"behtarino", "avval", "takhfifan", "divar", "sheypoor", "senfyab", "omdbox", "foodkeys"},
             "contacts": counts.get("contacts", 0),
             "records": counts.get("listings", 0),
             "status": runs[0].get("status", "idle") if runs else "idle",
@@ -493,6 +506,7 @@ async def overview(_: dict[str, Any] = Depends(current_session)) -> dict[str, An
             source_summary("takhfifan"),
             source_summary("torob"),
             source_summary("divar"),
+            source_summary("sheypoor"),
             source_summary("senfyab"),
             source_summary("omdbox"),
             source_summary("foodkeys"),
@@ -512,18 +526,19 @@ async def source_detail(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
     if source_key not in {
-        "behtarino", "avval", "takhfifan", "torob", "divar", "senfyab", "omdbox", "foodkeys"
+        "behtarino", "avval", "takhfifan", "torob", "divar", "sheypoor", "senfyab", "omdbox", "foodkeys"
     }:
         raise HTTPException(404, "منبع پیدا نشد.")
     summary = await source_summary(source_key)
     if source_key in {
-        "behtarino", "avval", "takhfifan", "divar", "senfyab", "omdbox", "foodkeys"
+        "behtarino", "avval", "takhfifan", "divar", "sheypoor", "senfyab", "omdbox", "foodkeys"
     } and summary["available"]:
         base = {
             "behtarino": BEHTARINO_API,
             "avval": AVVAL_API,
             "takhfifan": TAKHFIFAN_API,
             "divar": DIVAR_API,
+            "sheypoor": SHEYPOOR_API,
             "senfyab": SENFYAB_API,
             "omdbox": OMDBOX_API,
             "foodkeys": FOODKEYS_API,
@@ -560,7 +575,7 @@ async def run_history(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
     if source_key not in {
-        "behtarino", "avval", "takhfifan", "torob", "divar", "senfyab", "omdbox", "foodkeys"
+        "behtarino", "avval", "takhfifan", "torob", "divar", "sheypoor", "senfyab", "omdbox", "foodkeys"
     }:
         raise HTTPException(404, "منبع پیدا نشد.")
     summary = await source_summary(source_key)
@@ -572,7 +587,7 @@ async def settings_history(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
     if source_key not in {
-        "behtarino", "avval", "takhfifan", "torob", "divar", "senfyab", "omdbox", "foodkeys"
+        "behtarino", "avval", "takhfifan", "torob", "divar", "sheypoor", "senfyab", "omdbox", "foodkeys"
     }:
         raise HTTPException(404, "منبع پیدا نشد.")
     if source_key == "torob":
@@ -582,6 +597,7 @@ async def settings_history(
         "avval": AVVAL_API,
         "takhfifan": TAKHFIFAN_API,
         "divar": DIVAR_API,
+        "sheypoor": SHEYPOOR_API,
         "senfyab": SENFYAB_API,
         "omdbox": OMDBOX_API,
         "foodkeys": FOODKEYS_API,
@@ -1001,6 +1017,74 @@ async def update_divar_input(
                 session["user_id"],
                 "update_marketing_input",
                 "divar",
+                json.dumps(before, ensure_ascii=False),
+                json.dumps(values, ensure_ascii=False),
+                client_ip(request),
+                iso_now(),
+            ),
+        )
+    return {
+        "input": {
+            "keyword": updated.get("query") or values["keyword"],
+            "city": updated.get("city") or values["city"],
+            "category": updated.get("category") or values["category"],
+            "subcategory": updated.get("subcategory") or values["subcategory"],
+            "updated_at": updated.get("updated_at"),
+        }
+    }
+
+
+@app.put("/api/marketing/sources/sheypoor/input")
+async def update_sheypoor_input(
+    payload: SheypoorInput,
+    request: Request,
+    session: dict[str, Any] = Depends(require_csrf),
+) -> dict[str, Any]:
+    values = {
+        key: " ".join(value.split())
+        for key, value in payload.model_dump().items()
+    }
+    jobs = await upstream_json("GET", f"{SHEYPOOR_API}/api/sources/sheypoor/jobs")
+    if not jobs:
+        raise HTTPException(409, "Job شیپور هنوز ساخته نشده است.")
+    job = jobs[0]
+    try:
+        settings = json.loads(job.get("settings_json") or "{}")
+    except json.JSONDecodeError:
+        settings = {}
+    before = {
+        "keyword": job.get("query") or "",
+        "city": job.get("city") or "",
+        "category": job.get("category") or "",
+        "subcategory": job.get("subcategory") or "",
+    }
+    updated = await upstream_json(
+        "PUT",
+        f"{SHEYPOOR_API}/api/sources/sheypoor/jobs/{job['id']}",
+        {
+            "name": job["name"],
+            "city": values["city"],
+            "category": values["category"],
+            "subcategory": values["subcategory"],
+            "query": values["keyword"],
+            "enabled": bool(job.get("enabled", True)),
+            "schedule": job.get("schedule"),
+            "result_limit": job["result_limit"],
+            "destination_sheet": job["destination_sheet"],
+            "settings": settings,
+        },
+    )
+    with connect() as db:
+        db.execute(
+            """
+            INSERT INTO audit_log
+                (user_id,action,source_key,before_json,after_json,remote_ip,created_at)
+            VALUES (?,?,?,?,?,?,?)
+            """,
+            (
+                session["user_id"],
+                "update_marketing_input",
+                "sheypoor",
                 json.dumps(before, ensure_ascii=False),
                 json.dumps(values, ensure_ascii=False),
                 client_ip(request),
@@ -1664,6 +1748,115 @@ async def divar_export_xlsx(
         headers={
             "Content-Disposition": upstream.headers.get(
                 "content-disposition", 'attachment; filename="divar-contacts.xlsx"'
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+def sheypoor_filters(values: dict[str, Any]) -> dict[str, str]:
+    return {
+        "query": " ".join(values["keyword"].split()),
+        "city": " ".join(values["city"].split()),
+        "category": " ".join(values["category"].split()),
+        "subcategory": " ".join(values["subcategory"].split()),
+    }
+
+
+@app.get("/api/marketing/sources/sheypoor/exports/summary")
+async def sheypoor_export_summary(
+    keyword: str,
+    city: str,
+    category: str,
+    subcategory: str,
+    _: dict[str, Any] = Depends(current_session),
+) -> dict[str, Any]:
+    filters = urlencode(
+        sheypoor_filters(
+            {
+                "keyword": keyword,
+                "city": city,
+                "category": category,
+                "subcategory": subcategory,
+            }
+        )
+    )
+    return await upstream_json(
+        "GET", f"{SHEYPOOR_API}/api/sources/sheypoor/exports/summary?{filters}"
+    )
+
+
+@app.get("/api/marketing/sources/sheypoor/exports/history")
+async def sheypoor_export_history(
+    _: dict[str, Any] = Depends(current_session),
+) -> dict[str, Any]:
+    items = await upstream_json(
+        "GET", f"{SHEYPOOR_API}/api/sources/sheypoor/exports/history?limit=30"
+    )
+    return {"items": items}
+
+
+@app.post("/api/marketing/sources/sheypoor/exports/xlsx")
+async def sheypoor_export_xlsx(
+    payload: SheypoorExportInput,
+    request: Request,
+    session: dict[str, Any] = Depends(require_csrf),
+) -> Response:
+    if payload.to_contact_no < payload.from_contact_no:
+        raise HTTPException(400, "بازه شماره کانتکت معتبر نیست.")
+    upstream = await upstream_file(
+        "POST",
+        f"{SHEYPOOR_API}/api/sources/sheypoor/exports/xlsx",
+        {
+            **sheypoor_filters(payload.model_dump()),
+            "from_contact_no": payload.from_contact_no,
+            "to_contact_no": payload.to_contact_no,
+            "confirm_delivery": payload.confirm_delivery,
+        },
+    )
+    if payload.confirm_delivery:
+        with connect() as db:
+            db.execute(
+                """
+                INSERT INTO audit_log
+                    (user_id,action,source_key,before_json,after_json,remote_ip,created_at)
+                VALUES (?,?,?,?,?,?,?)
+                """,
+                (
+                    session["user_id"],
+                    "deliver_contact_export",
+                    "sheypoor",
+                    None,
+                    json.dumps(payload.model_dump(), ensure_ascii=False),
+                    client_ip(request),
+                    iso_now(),
+                ),
+            )
+    return Response(
+        content=upstream.content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": upstream.headers.get(
+                "content-disposition", 'attachment; filename="sheypoor-contacts.xlsx"'
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.post("/api/marketing/sources/sheypoor/exports/all/xlsx")
+async def sheypoor_export_all_xlsx(
+    _: dict[str, Any] = Depends(require_csrf),
+) -> Response:
+    upstream = await upstream_file(
+        "POST", f"{SHEYPOOR_API}/api/sources/sheypoor/exports/all/xlsx", {}
+    )
+    return Response(
+        content=upstream.content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": upstream.headers.get(
+                "content-disposition", 'attachment; filename="sheypoor-all-contacts.xlsx"'
             ),
             "Cache-Control": "no-store",
         },
