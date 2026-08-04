@@ -107,3 +107,7 @@ button{font-family:inherit}
 
 /* honeypot: hidden from people, visible to bots */
 .hp{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden}
+
+/* TEMPORARY: contact section holds only the form while the phone number is
+   unknown. Remove when .direct-call and .or-divider come back. */
+.contact-choices{grid-template-columns:1fr}
