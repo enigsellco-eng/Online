@@ -1600,6 +1600,129 @@ async function renderSheypoor() {
   return renderMarketplaceSource("sheypoor", "شیپور");
 }
 
+async function downloadTelegram(format) {
+  const response = await fetch(`${API}/sources/telegram/exports/found.${format}`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (response.status === 401) {
+    showLogin();
+    throw new Error("نشست شما پایان یافته است.");
+  }
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.detail || "دریافت خروجی تلگرام ناموفق بود.");
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `telegram-found.${format}`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function uploadTelegramCsv(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type='submit']");
+  button.disabled = true;
+  try {
+    const body = new FormData(form);
+    const response = await fetch(`${API}/sources/telegram/uploads/csv`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "X-CSRF-Token": state.csrfToken },
+      body,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || "ورود CSV ناموفق بود.");
+    showToast(
+      `${formatNumber(data.added)} شماره اضافه شد؛ ${formatNumber(data.invalid)} نامعتبر و ${formatNumber(data.duplicates)} تکراری.`,
+    );
+    form.reset();
+    document.querySelector("#telegram-phone-column").value = "phone";
+    await renderTelegram();
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function renderTelegram() {
+  setHeader("", "تلگرام", "ورودی و خروجی آداپتر مستقل بررسی موبایل");
+  content.innerHTML = `<div class="loading">در حال دریافت اطلاعات تلگرام…</div>`;
+  try {
+    const [source, results] = await Promise.all([
+      request("/sources/telegram"),
+      request("/sources/telegram/results"),
+    ]);
+    const telegram = source.telegram || {};
+    const counts = telegram.counts || {};
+    const validation = telegram.validation || {};
+    const usage = telegram.daily_usage || {};
+    const rows = (results.items || []).slice(0, 50);
+    content.innerHTML = `
+      <div class="telegram-layout">
+        <section class="telegram-metrics">
+          <article class="telegram-metric"><span>موبایل معتبر</span><strong>${formatNumber(validation.valid_mobile || 0)}</strong></article>
+          <article class="telegram-metric"><span>در انتظار</span><strong>${formatNumber((counts.pending || 0) + (counts.retry_later || 0))}</strong></article>
+          <article class="telegram-metric"><span>پیدا شده</span><strong>${formatNumber(counts.telegram_found || 0)}</strong></article>
+          <article class="telegram-metric"><span>قابل تشخیص نبود</span><strong>${formatNumber(counts.telegram_not_resolved || 0)}</strong></article>
+          <article class="telegram-metric"><span>مصرف امروز</span><strong>${formatNumber(usage.request_count || 0)}</strong></article>
+        </section>
+        <div class="two-column">
+          <section class="panel">
+            <div class="panel-header"><div><h2>ورودی CSV</h2><p>شماره‌های جدید به صف مستقل تلگرام افزوده می‌شوند.</p></div><span class="status-pill">${statusLabel(source.status)}</span></div>
+            <form id="telegram-upload-form">
+              <div class="form-grid">
+                <label>فایل CSV<input id="telegram-file" name="file" type="file" accept=".csv,text/csv" required /></label>
+                <label>نام ستون شماره<input id="telegram-phone-column" name="phone_column" value="phone" required /></label>
+              </div>
+              <div class="form-actions"><button class="button primary" type="submit">افزودن به صف بررسی</button></div>
+            </form>
+            <p class="privacy-note">قبل از Telegram، ارقام فارسی/عربی تبدیل، شماره به +98 استاندارد و فقط موبایل معتبر ایران وارد صف می‌شود.</p>
+          </section>
+          <section class="panel">
+            <div class="panel-header"><div><h2>خروجی نتایج مثبت</h2><p>فقط حساب‌هایی که Telegram رسماً برگردانده است.</p></div></div>
+            <div class="telegram-actions">
+              <button class="button primary" data-telegram-export="xlsx">دانلود Excel</button>
+              <button class="button secondary" data-telegram-export="csv">دانلود CSV</button>
+              <button class="button secondary" data-telegram-export="json">دانلود JSON</button>
+            </div>
+            <p class="privacy-note">«قابل تشخیص نبود» نتیجه منفی قطعی نیست و ممکن است ناشی از Privacy باشد.</p>
+          </section>
+        </div>
+        <section class="panel">
+          <div class="panel-header"><div><h2>نتایج پیدا شده</h2><p>نمایش ۵۰ نتیجه آخر از خروجی مستقل تلگرام</p></div><span class="status-pill">${formatNumber(results.items?.length || 0)} نتیجه</span></div>
+          <div class="telegram-table-wrap"><table class="telegram-table"><thead><tr><th>شماره استاندارد</th><th>User ID</th><th>Username</th><th>نام عمومی</th><th>زمان بررسی</th><th>منبع</th></tr></thead><tbody>
+            ${rows.length ? rows.map((row) => `<tr><td>${escapeHtml(row.standard_phone)}</td><td>${escapeHtml(row.telegram_user_id || "—")}</td><td>${escapeHtml(row.username || "—")}</td><td>${escapeHtml(row.public_name || "—")}</td><td>${formatDate(row.checked_at)}</td><td>${escapeHtml(row.source_keys || "—")}</td></tr>`).join("") : `<tr><td colspan="6">هنوز نتیجه مثبتی ثبت نشده است.</td></tr>`}
+          </tbody></table></div>
+        </section>
+      </div>`;
+    document.querySelector("#telegram-upload-form")
+      .addEventListener("submit", uploadTelegramCsv);
+    document.querySelectorAll("[data-telegram-export]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          await downloadTelegram(button.dataset.telegramExport);
+          showToast("خروجی تلگرام آماده و دانلود شد.");
+        } catch (error) {
+          showToast(error.message, true);
+        } finally {
+          button.disabled = false;
+        }
+      });
+    });
+  } catch (error) {
+    content.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+  }
+}
+
 
 function renderLocked(sourceKey) {
   const isTorob = sourceKey === "torob";
@@ -1647,6 +1770,7 @@ async function switchView(view) {
   if (view === "foodkeys") return renderFoodkeys();
   if (view === "divar") return renderDivar();
   if (view === "sheypoor") return renderSheypoor();
+  if (view === "telegram") return renderTelegram();
   renderLocked(view);
 }
 
