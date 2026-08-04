@@ -467,8 +467,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "PUT", "POST"],
-    allow_headers=["Content-Type", "X-CSRF-Token"],
+    allow_methods=["GET", "PUT", "POST", "OPTIONS"],
+    allow_headers=["*"],
+    max_age=0,
 )
 
 
