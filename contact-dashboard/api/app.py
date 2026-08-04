@@ -28,6 +28,15 @@ DATABASE_PATH = Path(
     )
 )
 ALLOWED_ORIGIN = os.getenv("MARKETING_ALLOWED_ORIGIN", "https://enigsell.com")
+ALLOWED_ORIGINS = list(
+    dict.fromkeys(
+        [
+            ALLOWED_ORIGIN.rstrip("/"),
+            "https://enigsell.com",
+            "https://www.enigsell.com",
+        ]
+    )
+)
 COOKIE_NAME = os.getenv("MARKETING_SESSION_COOKIE", "enigsell_marketing_session")
 SESSION_HOURS = int(os.getenv("MARKETING_SESSION_HOURS", "12"))
 BEHTARINO_API = os.getenv("MARKETING_BEHTARINO_API", "http://127.0.0.1:8031")
@@ -414,7 +423,7 @@ app = FastAPI(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[ALLOWED_ORIGIN],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "PUT", "POST"],
     allow_headers=["Content-Type", "X-CSRF-Token"],
