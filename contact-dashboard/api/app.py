@@ -15,10 +15,20 @@ from typing import Any
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Request, Response
+from fastapi import (
+    Cookie,
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-
 
 APP_NAME = "Enigsell Marketing Dashboard API"
 DATABASE_PATH = Path(
@@ -48,6 +58,7 @@ SENFYAB_API = os.getenv("MARKETING_SENFYAB_API", "http://127.0.0.1:8061")
 OMDBOX_API = os.getenv("MARKETING_OMDBOX_API", "http://127.0.0.1:8091")
 FOODKEYS_API = os.getenv("MARKETING_FOODKEYS_API", "http://127.0.0.1:8071")
 TOROB_API = os.getenv("MARKETING_TOROB_API", "http://127.0.0.1:8040")
+TELEGRAM_API = os.getenv("MARKETING_TELEGRAM_API", "http://127.0.0.1:8110")
 UPSTREAM_TIMEOUT = float(os.getenv("MARKETING_UPSTREAM_TIMEOUT_SECONDS", "5"))
 
 login_attempts: dict[str, list[float]] = {}
@@ -331,7 +342,38 @@ async def upstream_file(
     return response
 
 
+async def upstream_download(url: str) -> httpx.Response:
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.get(url)
+    except httpx.HTTPError as error:
+        raise HTTPException(503, "سرویس خروجی در دسترس نیست.") from error
+    if response.status_code >= 400:
+        raise HTTPException(response.status_code, "دریافت خروجی ناموفق بود.")
+    return response
+
+
 async def source_summary(source_key: str) -> dict[str, Any]:
+    if source_key == "telegram":
+        try:
+            data = await upstream_json(
+                "GET", f"{TELEGRAM_API}/api/sources/telegram/dashboard"
+            )
+            counts = data.get("counts") or {}
+            return {
+                "key": "telegram",
+                "name": "تلگرام",
+                "available": True,
+                "configuration_enabled": True,
+                "contacts": counts.get("contacts", 0),
+                "records": counts.get("telegram_found", 0),
+                "status": "running",
+                "last_run": None,
+                "recent_runs": data.get("recent_runs") or [],
+                "telegram": data,
+            }
+        except HTTPException:
+            return unavailable_source("telegram", "تلگرام")
     if source_key == "torob":
         try:
             data = await upstream_json("GET", f"{TOROB_API}/api/status")
@@ -519,12 +561,15 @@ async def overview(_: dict[str, Any] = Depends(current_session)) -> dict[str, An
             source_summary("senfyab"),
             source_summary("omdbox"),
             source_summary("foodkeys"),
+            source_summary("telegram"),
         )
     )
     return {
         "sources": sources,
         "total_contacts": sum(
-            source["contacts"] or 0 for source in sources if source["available"]
+            source["contacts"] or 0
+            for source in sources
+            if source["available"] and source["key"] != "telegram"
         ),
         "updated_at": iso_now(),
     }
@@ -535,7 +580,7 @@ async def source_detail(
     source_key: str, _: dict[str, Any] = Depends(current_session)
 ) -> dict[str, Any]:
     if source_key not in {
-        "behtarino", "avval", "takhfifan", "torob", "divar", "sheypoor", "senfyab", "omdbox", "foodkeys"
+        "behtarino", "avval", "takhfifan", "torob", "divar", "sheypoor", "senfyab", "omdbox", "foodkeys", "telegram"
     }:
         raise HTTPException(404, "منبع پیدا نشد.")
     summary = await source_summary(source_key)
@@ -2020,6 +2065,88 @@ async def foodkeys_export_all_xlsx(
             "Content-Disposition": upstream.headers.get(
                 "content-disposition",
                 'attachment; filename="foodkeys-all-contacts.xlsx"',
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.post("/api/marketing/sources/telegram/uploads/csv")
+async def telegram_upload_csv(
+    request: Request,
+    file: UploadFile = File(...),
+    phone_column: str = Form("phone"),
+    session: dict[str, Any] = Depends(require_csrf),
+) -> dict[str, Any]:
+    content = await file.read(20 * 1024 * 1024 + 1)
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(413, "فایل بیش از ۲۰ مگابایت است.")
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.post(
+                f"{TELEGRAM_API}/api/sources/telegram/uploads/csv",
+                files={
+                    "file": (
+                        file.filename or "contacts.csv",
+                        content,
+                        file.content_type or "text/csv",
+                    )
+                },
+                data={"phone_column": phone_column},
+            )
+    except httpx.HTTPError as error:
+        raise HTTPException(503, "آداپتر تلگرام در دسترس نیست.") from error
+    if response.status_code >= 400:
+        try:
+            detail = response.json().get("detail", "ورود CSV ناموفق بود.")
+        except ValueError:
+            detail = "ورود CSV ناموفق بود."
+        raise HTTPException(response.status_code, detail)
+    result = response.json()
+    with connect() as db:
+        db.execute(
+            """INSERT INTO audit_log
+               (user_id,action,source_key,before_json,after_json,remote_ip,created_at)
+               VALUES (?,?,?,?,?,?,?)""",
+            (
+                session["user_id"],
+                "upload_telegram_contacts",
+                "telegram",
+                None,
+                json.dumps(result, ensure_ascii=False),
+                client_ip(request),
+                iso_now(),
+            ),
+        )
+    return result
+
+
+@app.get("/api/marketing/sources/telegram/results")
+async def telegram_results(
+    _: dict[str, Any] = Depends(current_session),
+) -> dict[str, Any]:
+    return await upstream_json(
+        "GET", f"{TELEGRAM_API}/api/sources/telegram/results"
+    )
+
+
+@app.get("/api/marketing/sources/telegram/exports/found.{file_format}")
+async def telegram_export(
+    file_format: str,
+    _: dict[str, Any] = Depends(current_session),
+) -> Response:
+    if file_format not in {"csv", "json", "xlsx"}:
+        raise HTTPException(404, "فرمت خروجی پشتیبانی نمی‌شود.")
+    upstream = await upstream_download(
+        f"{TELEGRAM_API}/api/sources/telegram/exports/found.{file_format}"
+    )
+    return Response(
+        content=upstream.content,
+        media_type=upstream.headers.get("content-type", "application/octet-stream"),
+        headers={
+            "Content-Disposition": upstream.headers.get(
+                "content-disposition",
+                f'attachment; filename="telegram-found.{file_format}"',
             ),
             "Cache-Control": "no-store",
         },
