@@ -104,3 +104,6 @@ body,.lead-form input,.lead-form textarea,.lead-form button{font-family:"Vazirma
 /* static build: replaces Tailwind preflight bits actually in use */
 body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 button{font-family:inherit}
+
+/* honeypot: hidden from people, visible to bots */
+.hp{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden}

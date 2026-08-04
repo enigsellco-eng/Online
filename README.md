@@ -27,11 +27,14 @@
 GitHub Pages فقط فایل استاتیک سرو می‌کند و هیچ کد سمت‌سروری اجرا نمی‌کند، پس مسیر
 `/api/contact` نسخه اصلی اینجا کار نمی‌کند. فرم باید به یک endpoint بیرونی وصل شود.
 
-مقدار `CONTACT_ENDPOINT` را در ابتدای `app.js` تنظیم کنید:
+فرم به Worker زیر وصل است (سورس در `contact-worker/`):
 
 ```js
-var CONTACT_ENDPOINT = "https://api.enigsell.com/contact";
+var CONTACT_ENDPOINT = "https://form.enigsell.com";
 ```
+
+Worker لید را در دیتابیس D1 ذخیره می‌کند و سپس به کانال تلگرام
+«Enigsell Webform» می‌فرستد. جزئیات در `contact-worker/README.md`.
 
 فرم یک `POST` با بدنه JSON می‌فرستد:
 
@@ -49,7 +52,7 @@ var CONTACT_ENDPOINT = "https://api.enigsell.com/contact";
 - ورودی را دوباره validate و sanitize کند
 - rate limit داشته باشد
 
-تا وقتی `CONTACT_ENDPOINT` خالی باشد، فرم وانمود نمی‌کند که ثبت شده و به کاربر
+اگر `CONTACT_ENDPOINT` خالی شود، فرم وانمود نمی‌کند که ثبت شده و به کاربر
 می‌گوید با شماره تماس بگیرد.
 
 > ⚠️ **توکن ربات تلگرام هرگز نباید داخل این ریپو یا `app.js` قرار بگیرد.**
@@ -67,7 +70,6 @@ var CONTACT_ENDPOINT = "https://api.enigsell.com/contact";
 | لینکدین | `#` | هدر |
 | تلگرام | `#` | هدر |
 | واتس‌اپ | `https://wa.me/989120000000` | هدر |
-| مقصد فرم | `CONTACT_ENDPOINT = ""` | `app.js` |
 
 ## اجرای محلی
 

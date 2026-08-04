@@ -16,7 +16,7 @@
    * ⚠️ هیچ‌وقت توکن ربات تلگرام را اینجا نگذارید — این فایل عمومی است.
    * توکن باید در سمت سرور/Worker بماند.
    * ------------------------------------------------------------------ */
-  var CONTACT_ENDPOINT = "";
+  var CONTACT_ENDPOINT = "https://form.enigsell.com";
 
   /* ---------------------------- تم رنگی ---------------------------- */
   var main = document.querySelector("main");
@@ -58,7 +58,8 @@
       name: (form.elements.name.value || "").trim().slice(0, 100),
       company: (form.elements.company.value || "").trim().slice(0, 160),
       phone: (form.elements.phone.value || "").trim().slice(0, 40),
-      message: (form.elements.message.value || "").trim().slice(0, 1000)
+      message: (form.elements.message.value || "").trim().slice(0, 1000),
+      website: (form.elements.website.value || "").trim()
     };
 
     if (data.name.length < 2 || !PHONE_PATTERN.test(data.phone)) {

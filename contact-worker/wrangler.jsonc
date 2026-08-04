@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "enigsell-contact",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-01",
+  "observability": { "enabled": true },
+  "workers_dev": false,
+  "routes": [
+    { "pattern": "form.enigsell.com", "custom_domain": true }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "enigsell-leads",
+      "database_id": "e770a7b9-fd11-4fb7-a3b6-ede3795caccb"
+    }
+  ],
+  "vars": {
+    "ALLOWED_ORIGIN": "https://enigsell.com",
+    // Channel «Enigsell Webform». Not a secret — it identifies the chat but
+    // grants nothing without the bot token.
+    "TELEGRAM_CHAT_ID": "-1004302971541"
+  }
+  // Secrets (NOT here — set with `wrangler secret put`):
+  //   TELEGRAM_BOT_TOKEN
+}
