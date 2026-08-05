@@ -1821,6 +1821,30 @@ async function createSenderCampaign(event) {
   }
 }
 
+async function sendSenderTest(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type='submit']");
+  const resultHolder = document.querySelector("#sender-test-result");
+  button.disabled = true;
+  resultHolder.textContent = "در حال ارسال پیام آزمایشی…";
+  try {
+    const data = await senderFormRequest(
+      "/telegram-sender/test-message",
+      new FormData(form),
+    );
+    resultHolder.textContent = `پیام آزمایشی از «${data.account_label}» به ${data.phone} ارسال شد. شناسه پیام: ${data.telegram_message_id || "—"}`;
+    resultHolder.classList.remove("error-text");
+    showToast("پیام آزمایشی با موفقیت ارسال شد.");
+  } catch (error) {
+    resultHolder.textContent = error.message;
+    resultHolder.classList.add("error-text");
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function senderCampaignAction(event) {
   const button = event.currentTarget;
   button.disabled = true;
@@ -1891,6 +1915,23 @@ async function renderTelegramSender() {
           </div>
         </section>
         <section class="panel">
+          <div class="panel-header"><div><h2>ارسال آزمایشی</h2><p>قبل از ساخت یا شروع کمپین، یک پیام را فقط به شماره‌ای که خودتان وارد می‌کنید بفرستید.</p></div></div>
+          <form id="sender-test-form">
+            <div class="form-grid">
+              <label>حساب فرستنده<select name="slot" required>
+                <option value="">انتخاب حساب متصل</option>
+                ${accounts.map((account) => `<option value="${account.id}" ${account.status === "connected" ? "" : "disabled"}>${escapeHtml(account.label || `حساب ${account.id}`)} — ${escapeHtml(senderStatusLabel(account.status))}</option>`).join("")}
+              </select></label>
+              <label>شماره مقصد آزمایشی<input name="phone" dir="ltr" placeholder="+98912..." required /></label>
+              <label>فایل اختیاری<input name="attachment" type="file" /></label>
+            </div>
+            <label>متن آزمایشی<textarea name="message" rows="5" placeholder="متنی که می‌خواهید دقیقاً بررسی کنید"></textarea></label>
+            <p class="privacy-note">این عملیات فقط یک پیام می‌فرستد؛ کمپین ایجاد نمی‌شود و هیچ مخاطب دیگری در صف قرار نمی‌گیرد.</p>
+            <div class="form-actions"><button class="button primary" type="submit">ارسال فقط برای تست</button></div>
+            <p id="sender-test-result" class="account-state" aria-live="polite"></p>
+          </form>
+        </section>
+        <section class="panel">
           <div class="panel-header"><div><h2>کمپین جدید</h2><p>مخاطبان تأییدشده در بسته‌های مستقل بین حساب‌های آزاد توزیع می‌شوند. تمام ساعت‌ها بر اساس زمان ایران است.</p></div></div>
           <form id="sender-campaign-form">
             <div class="form-grid">
@@ -1921,6 +1962,7 @@ async function renderTelegramSender() {
       </div>`;
     document.querySelectorAll(".sender-code-form").forEach((form) => form.addEventListener("submit", requestSenderCode));
     document.querySelectorAll(".sender-confirm-form").forEach((form) => form.addEventListener("submit", confirmSenderAccount));
+    document.querySelector("#sender-test-form").addEventListener("submit", sendSenderTest);
     document.querySelector("#sender-campaign-form").addEventListener("submit", createSenderCampaign);
     document.querySelectorAll("[data-sender-action]").forEach((button) => button.addEventListener("click", senderCampaignAction));
     document.querySelector("#sender-stop").addEventListener("click", () => senderEmergencyStop(true));
