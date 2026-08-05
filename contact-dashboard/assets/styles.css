@@ -351,6 +351,82 @@ input:disabled {
   font-size: 9px;
 }
 
+.source-badge.telegram-sender {
+  background: #dff7ef;
+  color: #087f5b;
+}
+
+.sender-accounts,
+.sender-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.sender-account,
+.sender-metric {
+  background: #f7faf9;
+  border: 1px solid #dce8e4;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.sender-account h3,
+.sender-metric strong {
+  margin: 0 0 8px;
+}
+
+.sender-account .account-state {
+  color: #5f6f69;
+  font-size: 0.88rem;
+  min-height: 42px;
+}
+
+.sender-account .button {
+  margin-top: 8px;
+}
+
+.sender-metric span {
+  display: block;
+  color: #66756f;
+  font-size: 0.85rem;
+}
+
+.sender-metric strong {
+  display: block;
+  font-size: 1.65rem;
+}
+
+.sender-table-wrap {
+  overflow-x: auto;
+}
+
+.sender-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sender-table th,
+.sender-table td {
+  padding: 11px;
+  border-bottom: 1px solid #e7eeeb;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sender-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .sender-accounts,
+  .sender-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
 .telegram-layout {
   display: grid;
   gap: 20px;
