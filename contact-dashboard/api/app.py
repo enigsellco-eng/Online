@@ -7,6 +7,7 @@ import json
 import os
 import secrets
 import sqlite3
+import sys
 import time
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
@@ -28,7 +29,15 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+
+API_DIR = Path(__file__).resolve().parent
+if str(API_DIR) not in sys.path:
+    sys.path.insert(0, str(API_DIR))
+
+from telegram_sender_routes import install as install_telegram_sender_routes
 
 APP_NAME = "Enigsell Marketing Dashboard API"
 DATABASE_PATH = Path(
@@ -48,7 +57,13 @@ ALLOWED_ORIGINS = list(
     )
 )
 COOKIE_NAME = os.getenv("MARKETING_SESSION_COOKIE", "enigsell_marketing_session")
-SESSION_HOURS = int(os.getenv("MARKETING_SESSION_HOURS", "12"))
+SESSION_HOURS = int(os.getenv("MARKETING_SESSION_HOURS", "720"))
+DASHBOARD_DIR = Path(
+    os.getenv(
+        "MARKETING_DASHBOARD_DIR",
+        str(Path(__file__).resolve().parent.parent),
+    )
+)
 BEHTARINO_API = os.getenv("MARKETING_BEHTARINO_API", "http://127.0.0.1:8031")
 AVVAL_API = os.getenv("MARKETING_AVVAL_API", "http://127.0.0.1:8081")
 TAKHFIFAN_API = os.getenv("MARKETING_TAKHFIFAN_API", "http://127.0.0.1:8051")
@@ -59,6 +74,9 @@ OMDBOX_API = os.getenv("MARKETING_OMDBOX_API", "http://127.0.0.1:8091")
 FOODKEYS_API = os.getenv("MARKETING_FOODKEYS_API", "http://127.0.0.1:8071")
 TOROB_API = os.getenv("MARKETING_TOROB_API", "http://127.0.0.1:8040")
 TELEGRAM_API = os.getenv("MARKETING_TELEGRAM_API", "http://127.0.0.1:8110")
+TELEGRAM_SENDER_API = os.getenv(
+    "MARKETING_TELEGRAM_SENDER_API", "http://127.0.0.1:8121"
+)
 UPSTREAM_TIMEOUT = float(os.getenv("MARKETING_UPSTREAM_TIMEOUT_SECONDS", "5"))
 
 login_attempts: dict[str, list[float]] = {}
@@ -471,6 +489,11 @@ app.add_middleware(
     allow_headers=["*"],
     max_age=0,
 )
+
+
+@app.get("/dashboard", include_in_schema=False)
+def dashboard_redirect() -> RedirectResponse:
+    return RedirectResponse(url="/dashboard/", status_code=308)
 
 
 @app.get("/api/marketing/health")
@@ -2152,3 +2175,15 @@ async def telegram_export(
             "Cache-Control": "no-store",
         },
     )
+
+
+install_telegram_sender_routes(
+    app, current_session, require_csrf, upstream_json, TELEGRAM_SENDER_API
+)
+
+
+app.mount(
+    "/dashboard",
+    StaticFiles(directory=DASHBOARD_DIR, html=True, check_dir=False),
+    name="dashboard",
+)
