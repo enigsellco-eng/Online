@@ -1891,7 +1891,7 @@ async function renderTelegramSender() {
           </div>
         </section>
         <section class="panel">
-          <div class="panel-header"><div><h2>کمپین جدید</h2><p>مخاطبان تأییدشده در بسته‌های مستقل بین حساب‌های آزاد توزیع می‌شوند.</p></div></div>
+          <div class="panel-header"><div><h2>کمپین جدید</h2><p>مخاطبان تأییدشده در بسته‌های مستقل بین حساب‌های آزاد توزیع می‌شوند. تمام ساعت‌ها بر اساس زمان ایران است.</p></div></div>
           <form id="sender-campaign-form">
             <div class="form-grid">
               <label>نام کمپین<input name="name" required /></label>
@@ -1900,8 +1900,8 @@ async function renderTelegramSender() {
               <label>سقف روزانه هر حساب<input name="daily_limit_per_account" type="number" min="1" value="30" required /></label>
               <label>کمترین فاصله (ثانیه)<input name="min_delay_seconds" type="number" min="60" value="300" required /></label>
               <label>بیشترین فاصله (ثانیه)<input name="max_delay_seconds" type="number" min="60" value="900" required /></label>
-              <label>شروع ارسال<input name="start_time" type="time" value="09:00" required /></label>
-              <label>پایان ارسال<input name="end_time" type="time" value="18:00" required /></label>
+              <label>شروع ارسال (به وقت ایران)<input name="start_time" type="time" value="09:00" required /></label>
+              <label>پایان ارسال (به وقت ایران)<input name="end_time" type="time" value="18:00" required /></label>
               <label>فایل اختیاری<input name="attachment" type="file" /></label>
             </div>
             <label>متن پیام<textarea name="message" rows="6" required></textarea></label>
