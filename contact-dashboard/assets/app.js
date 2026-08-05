@@ -1723,6 +1723,213 @@ async function renderTelegram() {
   }
 }
 
+async function senderFormRequest(path, formData) {
+  const response = await fetch(`${API}${path}`, {
+    method: "POST",
+    credentials: "include",
+    cache: "no-store",
+    headers: { "X-CSRF-Token": state.csrfToken },
+    body: formData,
+  });
+  if (response.status === 401) {
+    showLogin();
+    throw new Error("نشست شما پایان یافته است.");
+  }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.detail || "درخواست ناموفق بود.");
+  return data;
+}
+
+function senderStatusLabel(status) {
+  const labels = {
+    connected: "متصل",
+    pending_code: "در انتظار کد",
+    disconnected: "قطع‌شده",
+    waiting: "انتظار محدودیت تلگرام",
+    draft: "پیش‌نویس",
+    running: "در حال ارسال",
+    paused: "متوقف",
+    completed: "تکمیل‌شده",
+    cancelled: "لغوشده",
+  };
+  return labels[status] || statusLabel(status);
+}
+
+async function requestSenderCode(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type='submit']");
+  button.disabled = true;
+  try {
+    await request("/telegram-sender/accounts/request-code", {
+      method: "POST",
+      body: JSON.stringify({
+        slot: Number(form.dataset.slot),
+        label: form.querySelector("[name='label']").value,
+        phone: form.querySelector("[name='phone']").value,
+      }),
+    });
+    showToast("کد ورود تلگرام ارسال شد.");
+    await renderTelegramSender();
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function confirmSenderAccount(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type='submit']");
+  button.disabled = true;
+  try {
+    await request("/telegram-sender/accounts/confirm", {
+      method: "POST",
+      body: JSON.stringify({
+        slot: Number(form.dataset.slot),
+        code: form.querySelector("[name='code']").value,
+        password: form.querySelector("[name='password']").value || null,
+      }),
+    });
+    showToast("حساب تلگرام با موفقیت متصل شد.");
+    await renderTelegramSender();
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function createSenderCampaign(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type='submit']");
+  button.disabled = true;
+  try {
+    const data = await senderFormRequest(
+      "/telegram-sender/campaigns",
+      new FormData(form),
+    );
+    showToast(`پیش‌نویس کمپین با ${formatNumber(data.recipients)} مخاطب ساخته شد.`);
+    form.reset();
+    await renderTelegramSender();
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function senderCampaignAction(event) {
+  const button = event.currentTarget;
+  button.disabled = true;
+  try {
+    await request(
+      `/telegram-sender/campaigns/${button.dataset.campaignId}/${button.dataset.action}`,
+      { method: "POST", body: JSON.stringify({}) },
+    );
+    showToast("وضعیت کمپین به‌روزرسانی شد.");
+    await renderTelegramSender();
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function senderEmergencyStop(stopped) {
+  try {
+    await request("/telegram-sender/emergency-stop", {
+      method: "POST",
+      body: JSON.stringify({ stopped }),
+    });
+    showToast(stopped ? "ارسال همه حساب‌ها متوقف شد." : "توقف اضطراری برداشته شد.");
+    await renderTelegramSender();
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+async function renderTelegramSender() {
+  setHeader("", "ارسال تلگرام", "مدیریت مستقل سه حساب، کمپین‌ها و نتایج ارسال");
+  content.innerHTML = `<div class="loading">در حال دریافت وضعیت ارسال تلگرام…</div>`;
+  try {
+    const data = await request("/telegram-sender");
+    const accounts = data.accounts || [];
+    const campaigns = data.campaigns || [];
+    const runtime = data.runtime || {};
+    const connected = accounts.filter((account) => account.status === "connected").length;
+    const totalSent = campaigns.reduce((sum, campaign) => sum + Number(campaign.sent || 0), 0);
+    content.innerHTML = `
+      <div class="telegram-layout">
+        <section class="sender-metrics">
+          <article class="sender-metric"><span>مخاطبان آماده</span><strong>${formatNumber(data.available_contacts || 0)}</strong></article>
+          <article class="sender-metric"><span>حساب‌های متصل</span><strong>${formatNumber(connected)} از ۳</strong></article>
+          <article class="sender-metric"><span>ارسال‌های ثبت‌شده</span><strong>${formatNumber(totalSent)}</strong></article>
+        </section>
+        <section class="panel">
+          <div class="panel-header"><div><h2>اتصال حساب‌ها</h2><p>برای هر جایگاه، شماره را ثبت و کد ورود را تأیید کنید.</p></div></div>
+          <div class="sender-accounts">
+            ${[1, 2, 3].map((slot) => {
+              const account = accounts.find((item) => item.id === slot) || {};
+              return `<article class="sender-account">
+                <h3>حساب ${formatNumber(slot)}</h3>
+                <p class="account-state">${escapeHtml(account.label || "ثبت‌نشده")} · ${escapeHtml(account.phone || "—")}<br>${escapeHtml(senderStatusLabel(account.status || "disconnected"))}</p>
+                <form class="sender-code-form" data-slot="${slot}">
+                  <label>عنوان حساب<input name="label" value="${escapeHtml(account.label || `فروشنده ${slot}`)}" required /></label>
+                  <label>شماره بین‌المللی<input name="phone" dir="ltr" value="${escapeHtml(account.phone || "+98")}" required /></label>
+                  <button class="button secondary wide" type="submit">دریافت کد</button>
+                </form>
+                <form class="sender-confirm-form" data-slot="${slot}">
+                  <label>کد ورود<input name="code" inputmode="numeric" required /></label>
+                  <label>رمز دومرحله‌ای<input name="password" type="password" /></label>
+                  <button class="button primary wide" type="submit">تأیید و اتصال</button>
+                </form>
+              </article>`;
+            }).join("")}
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-header"><div><h2>کمپین جدید</h2><p>مخاطبان تأییدشده در بسته‌های مستقل بین حساب‌های آزاد توزیع می‌شوند.</p></div></div>
+          <form id="sender-campaign-form">
+            <div class="form-grid">
+              <label>نام کمپین<input name="name" required /></label>
+              <label>تعداد مخاطب<input name="max_recipients" type="number" min="1" value="100" required /></label>
+              <label>اندازه بسته<input name="batch_size" type="number" min="1" value="20" required /></label>
+              <label>سقف روزانه هر حساب<input name="daily_limit_per_account" type="number" min="1" value="30" required /></label>
+              <label>کمترین فاصله (ثانیه)<input name="min_delay_seconds" type="number" min="60" value="300" required /></label>
+              <label>بیشترین فاصله (ثانیه)<input name="max_delay_seconds" type="number" min="60" value="900" required /></label>
+              <label>شروع ارسال<input name="start_time" type="time" value="09:00" required /></label>
+              <label>پایان ارسال<input name="end_time" type="time" value="18:00" required /></label>
+              <label>فایل اختیاری<input name="attachment" type="file" /></label>
+            </div>
+            <label>متن پیام<textarea name="message" rows="6" required></textarea></label>
+            <div class="form-actions"><button class="button primary" type="submit">ساخت پیش‌نویس کمپین</button></div>
+          </form>
+        </section>
+        <section class="panel">
+          <div class="panel-header"><div><h2>کمپین‌ها</h2><p>شروع، توقف و ادامه ارسال از این بخش کنترل می‌شود.</p></div>
+            <div class="sender-actions"><button id="sender-stop" class="button secondary">توقف اضطراری</button><button id="sender-resume" class="button secondary">رفع توقف</button></div>
+          </div>
+          ${runtime.emergency_stop ? `<p class="privacy-note">توقف اضطراری فعال است و هیچ حسابی پیام ارسال نمی‌کند.</p>` : ""}
+          <div class="sender-table-wrap"><table class="sender-table"><thead><tr><th>کمپین</th><th>وضعیت</th><th>کل</th><th>ارسال‌شده</th><th>ناموفق</th><th>عملیات</th></tr></thead><tbody>
+            ${campaigns.length ? campaigns.map((campaign) => `<tr><td>${escapeHtml(campaign.name)}</td><td>${escapeHtml(senderStatusLabel(campaign.status))}</td><td>${formatNumber(campaign.total || 0)}</td><td>${formatNumber(campaign.sent || 0)}</td><td>${formatNumber(campaign.failed || 0)}</td><td class="sender-actions"><button class="button primary" data-sender-action="start" data-campaign-id="${campaign.id}">شروع</button><button class="button secondary" data-sender-action="pause" data-campaign-id="${campaign.id}">توقف</button><button class="button secondary" data-sender-action="resume" data-campaign-id="${campaign.id}">ادامه</button></td></tr>`).join("") : `<tr><td colspan="6">هنوز کمپینی ساخته نشده است.</td></tr>`}
+          </tbody></table></div>
+          ${data.spreadsheet_url ? `<div class="form-actions"><a class="button secondary" href="${escapeHtml(data.spreadsheet_url)}" target="_blank" rel="noopener">باز کردن گزارش Google Sheet</a></div>` : ""}
+        </section>
+      </div>`;
+    document.querySelectorAll(".sender-code-form").forEach((form) => form.addEventListener("submit", requestSenderCode));
+    document.querySelectorAll(".sender-confirm-form").forEach((form) => form.addEventListener("submit", confirmSenderAccount));
+    document.querySelector("#sender-campaign-form").addEventListener("submit", createSenderCampaign);
+    document.querySelectorAll("[data-sender-action]").forEach((button) => button.addEventListener("click", senderCampaignAction));
+    document.querySelector("#sender-stop").addEventListener("click", () => senderEmergencyStop(true));
+    document.querySelector("#sender-resume").addEventListener("click", () => senderEmergencyStop(false));
+  } catch (error) {
+    content.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+  }
+}
+
 
 function renderLocked(sourceKey) {
   const isTorob = sourceKey === "torob";
@@ -1771,6 +1978,7 @@ async function switchView(view) {
   if (view === "divar") return renderDivar();
   if (view === "sheypoor") return renderSheypoor();
   if (view === "telegram") return renderTelegram();
+  if (view === "telegram-sender") return renderTelegramSender();
   renderLocked(view);
 }
 
