@@ -1801,6 +1801,28 @@ async function confirmSenderAccount(event) {
   }
 }
 
+async function logoutSenderAccount(event) {
+  const button = event.currentTarget;
+  const slot = Number(button.dataset.slot);
+  const label = button.dataset.label || `حساب ${slot}`;
+  if (!window.confirm(`از «${label}» خارج می‌شوید و این جایگاه برای شماره جدید آزاد می‌شود. ادامه می‌دهید؟`)) return;
+  button.disabled = true;
+  try {
+    const data = await request(`/telegram-sender/accounts/${slot}/logout`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    showToast(data.revoke_warning
+      ? "حساب از سیستم حذف شد؛ تلگرام هنگام باطل‌کردن نشست پاسخ کامل نداد."
+      : "خروج از حساب انجام شد؛ اکنون می‌توانید شماره جدید را وارد کنید.");
+    await renderTelegramSender();
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function createSenderCampaign(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -1910,6 +1932,7 @@ async function renderTelegramSender() {
                   <label>رمز دومرحله‌ای<input name="password" type="password" /></label>
                   <button class="button primary wide" type="submit">تأیید و اتصال</button>
                 </form>
+                ${["connected", "pending_code", "waiting"].includes(account.status) ? `<button class="button secondary wide sender-logout" type="button" data-slot="${slot}" data-label="${escapeHtml(account.label || `حساب ${slot}`)}">خروج از حساب و جایگزینی شماره</button>` : ""}
               </article>`;
             }).join("")}
           </div>
@@ -1962,6 +1985,7 @@ async function renderTelegramSender() {
       </div>`;
     document.querySelectorAll(".sender-code-form").forEach((form) => form.addEventListener("submit", requestSenderCode));
     document.querySelectorAll(".sender-confirm-form").forEach((form) => form.addEventListener("submit", confirmSenderAccount));
+    document.querySelectorAll(".sender-logout").forEach((button) => button.addEventListener("click", logoutSenderAccount));
     document.querySelector("#sender-test-form").addEventListener("submit", sendSenderTest);
     document.querySelector("#sender-campaign-form").addEventListener("submit", createSenderCampaign);
     document.querySelectorAll("[data-sender-action]").forEach((button) => button.addEventListener("click", senderCampaignAction));
