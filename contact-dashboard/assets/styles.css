@@ -420,9 +420,35 @@ input:disabled {
   flex-wrap: wrap;
 }
 
+.sender-audience-mode {
+  border: 1px solid #dce8e4;
+  border-radius: 14px;
+  margin: 16px 0;
+  padding: 14px 16px;
+}
+
+.sender-audience-mode label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.sender-audience-mode input {
+  width: auto;
+}
+
+.sender-audience-preview {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 18px;
+}
+
 @media (max-width: 900px) {
   .sender-accounts,
-  .sender-metrics {
+  .sender-metrics,
+  .sender-audience-preview {
     grid-template-columns: 1fr;
   }
 }

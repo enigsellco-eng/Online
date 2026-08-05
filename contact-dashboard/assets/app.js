@@ -1826,6 +1826,8 @@ async function logoutSenderAccount(event) {
 async function createSenderCampaign(event) {
   event.preventDefault();
   const form = event.currentTarget;
+  const includesPrevious = form.querySelector("[name='include_previously_sent']:checked")?.value === "true";
+  if (includesPrevious && !window.confirm("این حالت شماره‌هایی را که قبلاً پیام موفق گرفته‌اند نیز دوباره وارد کمپین می‌کند. ادامه می‌دهید؟")) return;
   const button = form.querySelector("button[type='submit']");
   button.disabled = true;
   try {
@@ -1840,6 +1842,25 @@ async function createSenderCampaign(event) {
     showToast(error.message, true);
   } finally {
     button.disabled = false;
+  }
+}
+
+async function refreshSenderAudiencePreview() {
+  const form = document.querySelector("#sender-campaign-form");
+  const holder = document.querySelector("#sender-audience-preview");
+  if (!form || !holder) return;
+  const includePrevious = form.querySelector("[name='include_previously_sent']:checked")?.value === "true";
+  holder.innerHTML = `<div class="loading">در حال محاسبه مخاطبان…</div>`;
+  try {
+    const data = await request(`/telegram-sender/campaigns/audience-preview?include_previously_sent=${includePrevious}`);
+    holder.innerHTML = `
+      <article class="sender-metric"><span>کل دیتابیس تلگرام</span><strong>${formatNumber(data.total)}</strong></article>
+      <article class="sender-metric"><span>بدون ارسال موفق قبلی</span><strong>${formatNumber(data.new)}</strong></article>
+      <article class="sender-metric"><span>قبلاً پیام‌گرفته</span><strong>${formatNumber(data.previously_sent)}</strong></article>
+      <article class="sender-metric"><span>در صف کمپین دیگر</span><strong>${formatNumber(data.reserved)}</strong></article>
+      <article class="sender-metric"><span>انتخاب نهایی این کمپین</span><strong>${formatNumber(data.selected)}</strong></article>`;
+  } catch (error) {
+    holder.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
   }
 }
 
@@ -1959,7 +1980,6 @@ async function renderTelegramSender() {
           <form id="sender-campaign-form">
             <div class="form-grid">
               <label>نام کمپین<input name="name" required /></label>
-              <label>تعداد مخاطب<input name="max_recipients" type="number" min="1" value="100" required /></label>
               <label>اندازه بسته<input name="batch_size" type="number" min="1" value="20" required /></label>
               <label>سقف روزانه هر حساب<input name="daily_limit_per_account" type="number" min="1" value="30" required /></label>
               <label>کمترین فاصله (ثانیه)<input name="min_delay_seconds" type="number" min="60" value="300" required /></label>
@@ -1968,6 +1988,12 @@ async function renderTelegramSender() {
               <label>پایان ارسال (به وقت ایران)<input name="end_time" type="time" value="18:00" required /></label>
               <label>فایل اختیاری<input name="attachment" type="file" /></label>
             </div>
+            <fieldset class="sender-audience-mode">
+              <legend>انتخاب مخاطبان</legend>
+              <label><input type="radio" name="include_previously_sent" value="false" checked /> فقط مخاطبانی که تاکنون ارسال موفق نداشته‌اند</label>
+              <label><input type="radio" name="include_previously_sent" value="true" /> شامل مخاطبانی که قبلاً پیام گرفته‌اند (ارسال مجدد)</label>
+            </fieldset>
+            <div id="sender-audience-preview" class="sender-audience-preview"></div>
             <label>متن پیام<textarea name="message" rows="6" required></textarea></label>
             <div class="form-actions"><button class="button primary" type="submit">ساخت پیش‌نویس کمپین</button></div>
           </form>
@@ -1988,9 +2014,11 @@ async function renderTelegramSender() {
     document.querySelectorAll(".sender-logout").forEach((button) => button.addEventListener("click", logoutSenderAccount));
     document.querySelector("#sender-test-form").addEventListener("submit", sendSenderTest);
     document.querySelector("#sender-campaign-form").addEventListener("submit", createSenderCampaign);
+    document.querySelectorAll("[name='include_previously_sent']").forEach((input) => input.addEventListener("change", refreshSenderAudiencePreview));
     document.querySelectorAll("[data-sender-action]").forEach((button) => button.addEventListener("click", senderCampaignAction));
     document.querySelector("#sender-stop").addEventListener("click", () => senderEmergencyStop(true));
     document.querySelector("#sender-resume").addEventListener("click", () => senderEmergencyStop(false));
+    await refreshSenderAudiencePreview();
   } catch (error) {
     content.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
   }
