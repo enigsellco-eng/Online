@@ -1753,6 +1753,7 @@ function summarizeSenderFiles(event) {
     input.value = "";
     if (holder) holder.textContent = message;
     showToast(message, true);
+    initializeSenderSequence(input.closest("form"));
     return;
   }
   if (holder) {
@@ -1760,6 +1761,62 @@ function summarizeSenderFiles(event) {
       ? `${formatNumber(files.length)} فایل انتخاب شد · ${(totalBytes / 1024 / 1024).toLocaleString("fa-IR", { maximumFractionDigits: 1 })} مگابایت`
       : "هنوز فایلی انتخاب نشده است.";
   }
+  initializeSenderSequence(input.closest("form"));
+}
+
+function senderSequenceLabel(token, form) {
+  if (token === "text") {
+    const textValue = form.querySelector("textarea[name='message']")?.value.trim() || "متن هنوز وارد نشده است";
+    return { kind: "متن", detail: textValue.slice(0, 80) };
+  }
+  const index = Number(token.split(":", 2)[1]);
+  const file = form.querySelector(".sender-files-input")?.files?.[index];
+  const kind = file?.type.startsWith("image/") ? "عکس"
+    : file?.type.startsWith("video/") ? "ویدئو"
+      : file?.type.startsWith("audio/") ? "فایل صوتی" : "فایل";
+  return { kind, detail: file?.name || `فایل ${index + 1}` };
+}
+
+function renderSenderSequence(form) {
+  const hidden = form.querySelector("[name='content_order']");
+  const holder = form.querySelector(".sender-sequence-list");
+  if (!hidden || !holder) return;
+  let tokens;
+  try { tokens = JSON.parse(hidden.value); } catch { tokens = ["text"]; }
+  holder.innerHTML = tokens.map((token, index) => {
+    const item = senderSequenceLabel(token, form);
+    return `<div class="sender-sequence-item" data-token="${escapeHtml(token)}">
+      <span class="sender-sequence-number">${formatNumber(index + 1)}</span>
+      <div><strong>${escapeHtml(item.kind)}</strong><small>${escapeHtml(item.detail)}</small></div>
+      <div class="sender-sequence-controls">
+        <button type="button" class="icon-button sender-sequence-move" data-direction="up" aria-label="انتقال به بالا" ${index === 0 ? "disabled" : ""}>↑</button>
+        <button type="button" class="icon-button sender-sequence-move" data-direction="down" aria-label="انتقال به پایین" ${index === tokens.length - 1 ? "disabled" : ""}>↓</button>
+      </div>
+    </div>`;
+  }).join("");
+  holder.querySelectorAll(".sender-sequence-move").forEach((button) => button.addEventListener("click", moveSenderSequence));
+}
+
+function initializeSenderSequence(form) {
+  if (!form) return;
+  const hidden = form.querySelector("[name='content_order']");
+  const files = Array.from(form.querySelector(".sender-files-input")?.files || []);
+  if (!hidden) return;
+  hidden.value = JSON.stringify(["text", ...files.map((_, index) => `file:${index}`)]);
+  renderSenderSequence(form);
+}
+
+function moveSenderSequence(event) {
+  const form = event.currentTarget.closest("form");
+  const hidden = form.querySelector("[name='content_order']");
+  const token = event.currentTarget.closest(".sender-sequence-item").dataset.token;
+  const tokens = JSON.parse(hidden.value);
+  const index = tokens.indexOf(token);
+  const nextIndex = event.currentTarget.dataset.direction === "up" ? index - 1 : index + 1;
+  if (index < 0 || nextIndex < 0 || nextIndex >= tokens.length) return;
+  [tokens[index], tokens[nextIndex]] = [tokens[nextIndex], tokens[index]];
+  hidden.value = JSON.stringify(tokens);
+  renderSenderSequence(form);
 }
 
 function senderStatusLabel(status) {
@@ -1992,6 +2049,8 @@ async function renderTelegramSender() {
               <label>رسانه‌ها و فایل‌های اختیاری<input class="sender-files-input" name="attachments" type="file" multiple /><small class="sender-file-summary">می‌توانید چند عکس، ویدئو، فایل صوتی یا فایل عمومی انتخاب کنید.</small></label>
             </div>
             <label>متن آزمایشی<textarea name="message" rows="5" placeholder="متنی که می‌خواهید دقیقاً بررسی کنید"></textarea></label>
+            <input type="hidden" name="content_order" value='["text"]' />
+            <section class="sender-sequence-builder" aria-label="ترتیب ارسال محتوای آزمایشی"><h3>ترتیب نهایی ارسال</h3><p>متن و فایل‌ها را با فلش‌ها دقیقاً به ترتیب دلخواه بچینید.</p><div class="sender-sequence-list"></div></section>
             <p class="privacy-note">این عملیات فقط یک پیام می‌فرستد؛ کمپین ایجاد نمی‌شود و هیچ مخاطب دیگری در صف قرار نمی‌گیرد.</p>
             <div class="form-actions"><button class="button primary" type="submit">ارسال فقط برای تست</button></div>
             <p id="sender-test-result" class="account-state" aria-live="polite"></p>
@@ -2017,6 +2076,8 @@ async function renderTelegramSender() {
             </fieldset>
             <div id="sender-audience-preview" class="sender-audience-preview"></div>
             <label>متن پیام<textarea name="message" rows="6" required></textarea></label>
+            <input type="hidden" name="content_order" value='["text"]' />
+            <section class="sender-sequence-builder" aria-label="ترتیب ارسال محتوای کمپین"><h3>ترتیب نهایی ارسال</h3><p>متن و فایل‌ها برای هر مخاطب دقیقاً با این ترتیب فرستاده می‌شوند.</p><div class="sender-sequence-list"></div></section>
             <div class="form-actions"><button class="button primary" type="submit">ساخت پیش‌نویس کمپین</button></div>
           </form>
         </section>
@@ -2035,6 +2096,10 @@ async function renderTelegramSender() {
     document.querySelectorAll(".sender-confirm-form").forEach((form) => form.addEventListener("submit", confirmSenderAccount));
     document.querySelectorAll(".sender-logout").forEach((button) => button.addEventListener("click", logoutSenderAccount));
     document.querySelectorAll(".sender-files-input").forEach((input) => input.addEventListener("change", summarizeSenderFiles));
+    document.querySelectorAll("#sender-test-form, #sender-campaign-form").forEach((form) => {
+      initializeSenderSequence(form);
+      form.querySelector("textarea[name='message']")?.addEventListener("input", () => renderSenderSequence(form));
+    });
     document.querySelector("#sender-test-form").addEventListener("submit", sendSenderTest);
     document.querySelector("#sender-campaign-form").addEventListener("submit", createSenderCampaign);
     document.querySelectorAll("[name='include_previously_sent']").forEach((input) => input.addEventListener("change", refreshSenderAudiencePreview));

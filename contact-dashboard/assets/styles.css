@@ -453,6 +453,72 @@ input:disabled {
   margin-top: 5px;
 }
 
+.sender-sequence-builder {
+  background: #f7faf9;
+  border: 1px solid #dce8e4;
+  border-radius: 14px;
+  margin: 16px 0;
+  padding: 16px;
+}
+
+.sender-sequence-builder h3,
+.sender-sequence-builder p {
+  margin: 0 0 6px;
+}
+
+.sender-sequence-builder p {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.sender-sequence-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.sender-sequence-item {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #dce8e4;
+  border-radius: 10px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  padding: 10px;
+}
+
+.sender-sequence-number {
+  align-items: center;
+  background: #dff7ef;
+  border-radius: 50%;
+  color: #087f5b;
+  display: flex;
+  font-weight: 700;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+
+.sender-sequence-item small {
+  color: var(--muted);
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sender-sequence-controls {
+  display: flex;
+  gap: 5px;
+}
+
+.sender-sequence-controls .icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
 @media (max-width: 900px) {
   .sender-accounts,
   .sender-metrics,
