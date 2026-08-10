@@ -1740,6 +1740,28 @@ async function senderFormRequest(path, formData) {
   return data;
 }
 
+function summarizeSenderFiles(event) {
+  const input = event.currentTarget;
+  const files = Array.from(input.files || []);
+  const holder = input.closest("label")?.querySelector(".sender-file-summary");
+  const tooLarge = files.find((file) => file.size > 25 * 1024 * 1024);
+  const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+  if (tooLarge || totalBytes > 200 * 1024 * 1024) {
+    const message = tooLarge
+      ? `فایل «${tooLarge.name}» بیشتر از ۲۵ مگابایت است.`
+      : "مجموع فایل‌ها بیشتر از ۲۰۰ مگابایت است.";
+    input.value = "";
+    if (holder) holder.textContent = message;
+    showToast(message, true);
+    return;
+  }
+  if (holder) {
+    holder.textContent = files.length
+      ? `${formatNumber(files.length)} فایل انتخاب شد · ${(totalBytes / 1024 / 1024).toLocaleString("fa-IR", { maximumFractionDigits: 1 })} مگابایت`
+      : "هنوز فایلی انتخاب نشده است.";
+  }
+}
+
 function senderStatusLabel(status) {
   const labels = {
     connected: "متصل",
@@ -1967,7 +1989,7 @@ async function renderTelegramSender() {
                 ${accounts.map((account) => `<option value="${account.id}" ${account.status === "connected" ? "" : "disabled"}>${escapeHtml(account.label || `حساب ${account.id}`)} — ${escapeHtml(senderStatusLabel(account.status))}</option>`).join("")}
               </select></label>
               <label>شماره مقصد آزمایشی<input name="phone" dir="ltr" placeholder="+98912..." required /></label>
-              <label>فایل اختیاری<input name="attachment" type="file" /></label>
+              <label>رسانه‌ها و فایل‌های اختیاری<input class="sender-files-input" name="attachments" type="file" multiple /><small class="sender-file-summary">می‌توانید چند عکس، ویدئو، فایل صوتی یا فایل عمومی انتخاب کنید.</small></label>
             </div>
             <label>متن آزمایشی<textarea name="message" rows="5" placeholder="متنی که می‌خواهید دقیقاً بررسی کنید"></textarea></label>
             <p class="privacy-note">این عملیات فقط یک پیام می‌فرستد؛ کمپین ایجاد نمی‌شود و هیچ مخاطب دیگری در صف قرار نمی‌گیرد.</p>
@@ -1986,7 +2008,7 @@ async function renderTelegramSender() {
               <label>بیشترین فاصله (ثانیه)<input name="max_delay_seconds" type="number" min="60" value="900" required /></label>
               <label>شروع ارسال (به وقت ایران)<input name="start_time" type="time" value="09:00" required /></label>
               <label>پایان ارسال (به وقت ایران)<input name="end_time" type="time" value="18:00" required /></label>
-              <label>فایل اختیاری<input name="attachment" type="file" /></label>
+              <label>رسانه‌ها و فایل‌های اختیاری<input class="sender-files-input" name="attachments" type="file" multiple /><small class="sender-file-summary">می‌توانید چند عکس، ویدئو، فایل صوتی یا فایل عمومی انتخاب کنید.</small></label>
             </div>
             <fieldset class="sender-audience-mode">
               <legend>انتخاب مخاطبان</legend>
@@ -2012,6 +2034,7 @@ async function renderTelegramSender() {
     document.querySelectorAll(".sender-code-form").forEach((form) => form.addEventListener("submit", requestSenderCode));
     document.querySelectorAll(".sender-confirm-form").forEach((form) => form.addEventListener("submit", confirmSenderAccount));
     document.querySelectorAll(".sender-logout").forEach((button) => button.addEventListener("click", logoutSenderAccount));
+    document.querySelectorAll(".sender-files-input").forEach((input) => input.addEventListener("change", summarizeSenderFiles));
     document.querySelector("#sender-test-form").addEventListener("submit", sendSenderTest);
     document.querySelector("#sender-campaign-form").addEventListener("submit", createSenderCampaign);
     document.querySelectorAll("[name='include_previously_sent']").forEach((input) => input.addEventListener("change", refreshSenderAudiencePreview));

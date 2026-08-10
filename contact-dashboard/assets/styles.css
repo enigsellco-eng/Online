@@ -445,6 +445,14 @@ input:disabled {
   margin: 14px 0 18px;
 }
 
+.sender-file-summary {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.7;
+  margin-top: 5px;
+}
+
 @media (max-width: 900px) {
   .sender-accounts,
   .sender-metrics,
