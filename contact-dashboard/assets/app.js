@@ -1767,7 +1767,7 @@ function summarizeSenderFiles(event) {
 function senderSequenceLabel(token, form) {
   if (token === "text") {
     const textValue = form.querySelector("textarea[name='message']")?.value.trim() || "متن هنوز وارد نشده است";
-    return { kind: "متن", detail: textValue.slice(0, 80) };
+    return { kind: isSenderAlbumForm(form) ? "کپشن مشترک آلبوم" : "متن", detail: textValue.slice(0, 80) };
   }
   const index = Number(token.split(":", 2)[1]);
   const file = form.querySelector(".sender-files-input")?.files?.[index];
@@ -1777,20 +1777,35 @@ function senderSequenceLabel(token, form) {
   return { kind, detail: file?.name || `فایل ${index + 1}` };
 }
 
+function isSenderAlbumForm(form) {
+  const files = Array.from(form.querySelector(".sender-files-input")?.files || []);
+  return files.length > 0 && files.every((file) => file.type.startsWith("image/") || file.type.startsWith("video/"));
+}
+
 function renderSenderSequence(form) {
   const hidden = form.querySelector("[name='content_order']");
   const holder = form.querySelector(".sender-sequence-list");
   if (!hidden || !holder) return;
   let tokens;
   try { tokens = JSON.parse(hidden.value); } catch { tokens = ["text"]; }
+  const albumMode = isSenderAlbumForm(form);
+  const mediaCount = tokens.filter((token) => token.startsWith("file:")).length;
+  const description = form.querySelector(".sender-sequence-builder > p");
+  if (description) {
+    description.textContent = albumMode
+      ? `${formatNumber(mediaCount)} رسانه با ترتیب زیر در یک آلبوم تلگرام و متن به‌عنوان کپشن همان پیام ارسال می‌شود${mediaCount > 10 ? "؛ تلگرام آلبوم‌های بیشتر از ۱۰ رسانه را تقسیم می‌کند" : ""}.`
+      : "متن و فایل‌های غیرتصویری با ترتیب زیر به‌صورت پیام‌های جدا ارسال می‌شوند.";
+  }
   holder.innerHTML = tokens.map((token, index) => {
     const item = senderSequenceLabel(token, form);
+    const lockedCaption = albumMode && token === "text";
+    const lastMovableIndex = albumMode ? tokens.length - 2 : tokens.length - 1;
     return `<div class="sender-sequence-item" data-token="${escapeHtml(token)}">
       <span class="sender-sequence-number">${formatNumber(index + 1)}</span>
       <div><strong>${escapeHtml(item.kind)}</strong><small>${escapeHtml(item.detail)}</small></div>
       <div class="sender-sequence-controls">
-        <button type="button" class="icon-button sender-sequence-move" data-direction="up" aria-label="انتقال به بالا" ${index === 0 ? "disabled" : ""}>↑</button>
-        <button type="button" class="icon-button sender-sequence-move" data-direction="down" aria-label="انتقال به پایین" ${index === tokens.length - 1 ? "disabled" : ""}>↓</button>
+        <button type="button" class="icon-button sender-sequence-move" data-direction="up" aria-label="انتقال به بالا" ${lockedCaption || index === 0 ? "disabled" : ""}>↑</button>
+        <button type="button" class="icon-button sender-sequence-move" data-direction="down" aria-label="انتقال به پایین" ${lockedCaption || index === lastMovableIndex ? "disabled" : ""}>↓</button>
       </div>
     </div>`;
   }).join("");
@@ -1802,7 +1817,8 @@ function initializeSenderSequence(form) {
   const hidden = form.querySelector("[name='content_order']");
   const files = Array.from(form.querySelector(".sender-files-input")?.files || []);
   if (!hidden) return;
-  hidden.value = JSON.stringify(["text", ...files.map((_, index) => `file:${index}`)]);
+  const fileTokens = files.map((_, index) => `file:${index}`);
+  hidden.value = JSON.stringify(isSenderAlbumForm(form) ? [...fileTokens, "text"] : ["text", ...fileTokens]);
   renderSenderSequence(form);
 }
 
@@ -1814,6 +1830,7 @@ function moveSenderSequence(event) {
   const index = tokens.indexOf(token);
   const nextIndex = event.currentTarget.dataset.direction === "up" ? index - 1 : index + 1;
   if (index < 0 || nextIndex < 0 || nextIndex >= tokens.length) return;
+  if (isSenderAlbumForm(form) && (token === "text" || tokens[nextIndex] === "text")) return;
   [tokens[index], tokens[nextIndex]] = [tokens[nextIndex], tokens[index]];
   hidden.value = JSON.stringify(tokens);
   renderSenderSequence(form);

@@ -466,6 +466,11 @@ input:disabled {
   margin: 0 0 6px;
 }
 
+.sender-sequence-builder p::before {
+  content: "◉ ";
+  color: #087f5b;
+}
+
 .sender-sequence-builder p {
   color: var(--muted);
   font-size: 0.85rem;
