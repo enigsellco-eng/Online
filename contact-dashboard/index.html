@@ -6,11 +6,6 @@
     <meta name="robots" content="noindex,nofollow" />
     <meta name="theme-color" content="#081916" />
     <title>داشبورد مارکتینگ | Enigsell</title>
-    <script>
-      if (["enigsell.com", "www.enigsell.com"].includes(location.hostname)) {
-        location.replace("https://marketing-gateway.enigsell.com/dashboard/");
-      }
-    </script>
     <link rel="stylesheet" href="./assets/styles.css?v=17" />
   </head>
   <body>
@@ -134,7 +129,10 @@
 
     <script>
       window.ENIGSELL_MARKETING_API =
-        window.ENIGSELL_MARKETING_API || window.location.origin;
+        window.ENIGSELL_MARKETING_API ||
+        (["enigsell.com", "www.enigsell.com"].includes(location.hostname)
+          ? "https://api.enigsell.com"
+          : window.location.origin);
     </script>
     <script src="./assets/app.js?v=34" defer></script>
   </body>
