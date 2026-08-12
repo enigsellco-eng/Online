@@ -2038,10 +2038,15 @@ async function sendSenderTest(event) {
 
 async function senderCampaignAction(event) {
   const button = event.currentTarget;
+  const action = button.dataset.senderAction;
+  if (!['start', 'pause', 'resume', 'cancel'].includes(action)) {
+    showToast("عملیات کمپین معتبر نیست؛ صفحه را تازه‌سازی کنید.", true);
+    return;
+  }
   button.disabled = true;
   try {
     await request(
-      `/telegram-sender/campaigns/${button.dataset.campaignId}/${button.dataset.action}`,
+      `/telegram-sender/campaigns/${button.dataset.campaignId}/${action}`,
       { method: "POST", body: JSON.stringify({}) },
     );
     showToast("وضعیت کمپین به‌روزرسانی شد.");
