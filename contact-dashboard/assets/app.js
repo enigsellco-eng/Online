@@ -1728,28 +1728,48 @@ async function senderFormRequest(path, formData) {
   formData.delete("attachments");
   const uploadTokens = [];
   for (let index = 0; index < files.length; index += 1) {
-    showToast(`در حال بارگذاری فایل ${formatNumber(index + 1)} از ${formatNumber(files.length)}…`);
-    const uploadData = new FormData();
-    uploadData.append("attachment", files[index], files[index].name);
-    let uploadResponse;
-    try {
-      uploadResponse = await fetch(`${API}/telegram-sender/uploads`, {
-        method: "POST",
-        credentials: "include",
-        cache: "no-store",
-        headers: { "X-CSRF-Token": state.csrfToken },
-        body: uploadData,
-      });
-    } catch {
-      throw new Error(`ارتباط هنگام بارگذاری فایل «${files[index].name}» قطع شد؛ دوباره تلاش کنید.`);
+    const file = files[index];
+    const chunkSize = 1024 * 1024;
+    const chunkCount = Math.max(1, Math.ceil(file.size / chunkSize));
+    let uploadId = "";
+    for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
+      showToast(`فایل ${formatNumber(index + 1)} از ${formatNumber(files.length)} · بخش ${formatNumber(chunkIndex + 1)} از ${formatNumber(chunkCount)}`);
+      const uploadData = new FormData();
+      uploadData.append("chunk", file.slice(chunkIndex * chunkSize, Math.min(file.size, (chunkIndex + 1) * chunkSize)), "chunk.bin");
+      uploadData.append("upload_id", uploadId);
+      uploadData.append("filename", file.name);
+      uploadData.append("offset", String(chunkIndex * chunkSize));
+      uploadData.append("final", chunkIndex === chunkCount - 1 ? "true" : "false");
+      let uploadResponse;
+      let networkError = null;
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        try {
+          uploadResponse = await fetch(`${API}/telegram-sender/uploads/chunk`, {
+            method: "POST",
+            credentials: "include",
+            cache: "no-store",
+            headers: { "X-CSRF-Token": state.csrfToken },
+            body: uploadData,
+          });
+          networkError = null;
+          break;
+        } catch (error) {
+          networkError = error;
+          if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+        }
+      }
+      if (networkError || !uploadResponse) {
+        throw new Error(`ارتباط در بخش ${chunkIndex + 1} فایل «${file.name}» پس از سه تلاش قطع شد.`);
+      }
+      if (uploadResponse.status === 401) {
+        showLogin();
+        throw new Error("نشست شما پایان یافته است.");
+      }
+      const uploadResult = await uploadResponse.json().catch(() => ({}));
+      if (!uploadResponse.ok) throw new Error(uploadResult.detail || `بارگذاری فایل «${file.name}» ناموفق بود.`);
+      uploadId = uploadResult.upload_id;
+      if (uploadResult.complete) uploadTokens.push(uploadResult.token);
     }
-    if (uploadResponse.status === 401) {
-      showLogin();
-      throw new Error("نشست شما پایان یافته است.");
-    }
-    const uploadResult = await uploadResponse.json().catch(() => ({}));
-    if (!uploadResponse.ok) throw new Error(uploadResult.detail || `بارگذاری فایل «${files[index].name}» ناموفق بود.`);
-    uploadTokens.push(uploadResult.token);
   }
   formData.set("upload_tokens", JSON.stringify(uploadTokens));
   let response;
