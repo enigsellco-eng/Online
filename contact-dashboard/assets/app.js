@@ -1724,13 +1724,46 @@ async function renderTelegram() {
 }
 
 async function senderFormRequest(path, formData) {
-  const response = await fetch(`${API}${path}`, {
-    method: "POST",
-    credentials: "include",
-    cache: "no-store",
-    headers: { "X-CSRF-Token": state.csrfToken },
-    body: formData,
-  });
+  const files = formData.getAll("attachments").filter((file) => file instanceof File && file.size);
+  formData.delete("attachments");
+  const uploadTokens = [];
+  for (let index = 0; index < files.length; index += 1) {
+    showToast(`در حال بارگذاری فایل ${formatNumber(index + 1)} از ${formatNumber(files.length)}…`);
+    const uploadData = new FormData();
+    uploadData.append("attachment", files[index], files[index].name);
+    let uploadResponse;
+    try {
+      uploadResponse = await fetch(`${API}/telegram-sender/uploads`, {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+        headers: { "X-CSRF-Token": state.csrfToken },
+        body: uploadData,
+      });
+    } catch {
+      throw new Error(`ارتباط هنگام بارگذاری فایل «${files[index].name}» قطع شد؛ دوباره تلاش کنید.`);
+    }
+    if (uploadResponse.status === 401) {
+      showLogin();
+      throw new Error("نشست شما پایان یافته است.");
+    }
+    const uploadResult = await uploadResponse.json().catch(() => ({}));
+    if (!uploadResponse.ok) throw new Error(uploadResult.detail || `بارگذاری فایل «${files[index].name}» ناموفق بود.`);
+    uploadTokens.push(uploadResult.token);
+  }
+  formData.set("upload_tokens", JSON.stringify(uploadTokens));
+  let response;
+  try {
+    response = await fetch(`${API}${path}`, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: { "X-CSRF-Token": state.csrfToken },
+      body: formData,
+    });
+  } catch {
+    throw new Error("ارتباط با سرور هنگام ارسال قطع شد؛ وضعیت اینترنت را بررسی و دوباره تلاش کنید.");
+  }
   if (response.status === 401) {
     showLogin();
     throw new Error("نشست شما پایان یافته است.");
@@ -1746,10 +1779,9 @@ function summarizeSenderFiles(event) {
   const holder = input.closest("label")?.querySelector(".sender-file-summary");
   const tooLarge = files.find((file) => file.size > 25 * 1024 * 1024);
   const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
-  if (tooLarge || totalBytes > 200 * 1024 * 1024) {
+  if (tooLarge) {
     const message = tooLarge
-      ? `فایل «${tooLarge.name}» بیشتر از ۲۵ مگابایت است.`
-      : "مجموع فایل‌ها بیشتر از ۲۰۰ مگابایت است.";
+      ? `فایل «${tooLarge.name}» بیشتر از ۲۵ مگابایت است.` : "";
     input.value = "";
     if (holder) holder.textContent = message;
     showToast(message, true);
