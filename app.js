@@ -18,19 +18,6 @@
    * ------------------------------------------------------------------ */
   var CONTACT_ENDPOINT = "https://form.enigsell.com";
 
-  /* ---------------------------- تم رنگی ---------------------------- */
-  var main = document.querySelector("main");
-  var themeButtons = document.querySelectorAll(".theme-picker button");
-
-  Array.prototype.forEach.call(themeButtons, function (button) {
-    button.addEventListener("click", function () {
-      main.setAttribute("data-theme", button.dataset.color);
-      Array.prototype.forEach.call(themeButtons, function (other) {
-        other.classList.toggle("selected", other === button);
-      });
-    });
-  });
-
   /* --------------------------- فرم تماس ---------------------------- */
   var form = document.getElementById("lead-form");
   if (!form) return;
