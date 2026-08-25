@@ -144,7 +144,6 @@ function storedDatabasePanel(sourceKey, displayName) {
       <div class="panel-header">
         <div>
           <h2>دانلود فایل ذخیره‌شده ${escapeHtml(displayName)}</h2>
-          <p>نسخه Excel ذخیره‌شده در Google Drive؛ مستقل از وضعیت استخراج و سرویس آداپتر.</p>
         </div>
         <span class="status-pill">فایل ذخیره‌شده</span>
       </div>
