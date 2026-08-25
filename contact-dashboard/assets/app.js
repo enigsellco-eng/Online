@@ -98,18 +98,18 @@ async function downloadAllContacts(sourceKey) {
   if (button) button.disabled = true;
   try {
     const blob = await downloadRequest(
-      `/sources/${sourceKey}/exports/all/xlsx`,
+      `/sources/${sourceKey}/drive/xlsx`,
       {},
     );
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `${sourceKey}-all-contacts.xlsx`;
+    anchor.download = `${sourceKey}-stored-database.xlsx`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
-    showToast("خروجی کل دیتابیس دانلود شد.");
+    showToast("دیتابیس Excel ذخیره‌شده دانلود شد.");
   } catch (error) {
     showToast(error.message, true);
   } finally {
@@ -451,7 +451,7 @@ async function renderDirectorySource(sourceKey, displayName) {
                 دانلود و ثبت تحویل
               </button>
               <button id="download-all-${sourceKey}" class="button secondary" type="button">
-                دانلود کل دیتابیس
+                دانلود دیتابیس Excel
               </button>
             </div>
           </div>
@@ -717,7 +717,7 @@ async function renderTakhfifan() {
               <button id="apply-takhfifan-export-filter" class="button secondary" type="button">اعمال فیلتر</button>
               <button id="preview-takhfifan-export" class="button secondary" type="button">دانلود آزمایشی</button>
               <button id="confirm-takhfifan-export" class="button primary" type="button">دانلود و ثبت تحویل</button>
-              <button id="download-all-takhfifan" class="button secondary" type="button">دانلود کل دیتابیس</button>
+              <button id="download-all-takhfifan" class="button secondary" type="button">دانلود دیتابیس Excel</button>
             </div>
           </div>
           <div>
@@ -981,7 +981,7 @@ async function renderClassifiedSource(sourceKey, displayName, subcategoryRequire
                 <button id="apply-${sourceKey}-export-filter" class="button secondary" type="button">اعمال فیلتر</button>
                 <button id="preview-${sourceKey}-export" class="button secondary" type="button">دانلود آزمایشی</button>
                 <button id="confirm-${sourceKey}-export" class="button primary" type="button">دانلود و ثبت تحویل</button>
-                <button id="download-all-${sourceKey}" class="button secondary" type="button">دانلود کل دیتابیس</button>
+                <button id="download-all-${sourceKey}" class="button secondary" type="button">دانلود دیتابیس Excel</button>
               </div>
             </div>
             <div>
@@ -1140,7 +1140,7 @@ async function renderFoodkeys() {
                 <button id="confirm-foodkeys-export"
                   class="button primary" type="button">دانلود و ثبت تحویل</button>
                 <button id="download-all-foodkeys"
-                  class="button secondary" type="button">دانلود کل دیتابیس</button>
+                  class="button secondary" type="button">دانلود دیتابیس Excel</button>
               </div>
             </div>
             <div>
@@ -1478,7 +1478,7 @@ async function renderMarketplaceSource(sourceKey, displayName) {
                 <button id="apply-${sourceKey}-export-filter" class="button secondary" type="button">اعمال فیلتر</button>
                 <button id="preview-${sourceKey}-export" class="button secondary" type="button">دانلود آزمایشی</button>
                 <button id="confirm-${sourceKey}-export" class="button primary" type="button">دانلود و ثبت تحویل</button>
-                <button id="download-all-${sourceKey}" class="button secondary" type="button">دانلود کل دیتابیس</button>
+                <button id="download-all-${sourceKey}" class="button secondary" type="button">دانلود دیتابیس Excel</button>
               </div>
             </div>
             <div>
