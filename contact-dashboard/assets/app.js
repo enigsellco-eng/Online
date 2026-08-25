@@ -117,6 +117,61 @@ async function downloadAllContacts(sourceKey) {
   }
 }
 
+async function downloadStoredDatabase(sourceKey) {
+  const button = document.querySelector(`#download-drive-${sourceKey}`);
+  if (button) button.disabled = true;
+  try {
+    const blob = await downloadRequest(`/sources/${sourceKey}/drive/xlsx`, {});
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${sourceKey}-stored-database.xlsx`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    showToast("نسخه ذخیره‌شده Excel دانلود شد.");
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function storedDatabasePanel(sourceKey, displayName) {
+  return `
+    <section class="panel stored-database-panel">
+      <div class="panel-header">
+        <div>
+          <h2>دانلود فایل ذخیره‌شده ${escapeHtml(displayName)}</h2>
+          <p>نسخه Excel ذخیره‌شده در Google Drive؛ مستقل از وضعیت استخراج و سرویس آداپتر.</p>
+        </div>
+        <span class="status-pill">فایل ذخیره‌شده</span>
+      </div>
+      <div class="form-actions">
+        <button id="download-drive-${sourceKey}" class="button primary" type="button">
+          دانلود دیتابیس Excel
+        </button>
+      </div>
+    </section>`;
+}
+
+function mountStoredDatabasePanel(sourceKey, displayName) {
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = storedDatabasePanel(sourceKey, displayName);
+  content.appendChild(wrapper.firstElementChild);
+  document.querySelector(`#download-drive-${sourceKey}`)
+    ?.addEventListener("click", () => downloadStoredDatabase(sourceKey));
+}
+
+function showStoredDatabaseFallback(sourceKey, displayName, error) {
+  content.innerHTML = `
+    <div class="empty">اطلاعات زنده ${escapeHtml(displayName)} در دسترس نیست: ${escapeHtml(error.message)}</div>
+    ${storedDatabasePanel(sourceKey, displayName)}`;
+  document.querySelector(`#download-drive-${sourceKey}`)
+    ?.addEventListener("click", () => downloadStoredDatabase(sourceKey));
+}
+
 function showToast(message, isError = false) {
   toast.textContent = message;
   toast.classList.toggle("error", isError);
@@ -410,6 +465,7 @@ async function renderDirectorySource(sourceKey, displayName) {
       </section>
       </div>
     `;
+    mountStoredDatabasePanel(sourceKey, displayName);
     document
       .querySelector("#directory-source-form")
       .addEventListener("submit", (event) =>
@@ -441,7 +497,7 @@ async function renderDirectorySource(sourceKey, displayName) {
     loadDirectoryExport(sourceKey);
     loadDirectoryExportHistory(sourceKey);
   } catch (error) {
-    content.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+    showStoredDatabaseFallback(sourceKey, displayName, error);
   }
 }
 
@@ -674,6 +730,7 @@ async function renderTakhfifan() {
       </section>
       </div>
     `;
+    mountStoredDatabasePanel("takhfifan", "تخفیفان");
     document
       .querySelector("#takhfifan-form")
       .addEventListener("submit", saveTakhfifan);
@@ -698,7 +755,7 @@ async function renderTakhfifan() {
     loadTakhfifanExport();
     loadTakhfifanExportHistory();
   } catch (error) {
-    content.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+    showStoredDatabaseFallback("takhfifan", "تخفیفان", error);
   }
 }
 
@@ -936,6 +993,7 @@ async function renderClassifiedSource(sourceKey, displayName, subcategoryRequire
           </div>
         </section>
       </div>`;
+    mountStoredDatabasePanel(sourceKey, displayName);
     document
       .querySelector(`#${sourceKey}-form`)
       .addEventListener("submit", (event) =>
@@ -960,7 +1018,7 @@ async function renderClassifiedSource(sourceKey, displayName, subcategoryRequire
     loadClassifiedExport(sourceKey, displayName, subcategoryRequired);
     loadClassifiedExportHistory(sourceKey);
   } catch (error) {
-    content.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+    showStoredDatabaseFallback(sourceKey, displayName, error);
   }
 }
 
@@ -1094,6 +1152,7 @@ async function renderFoodkeys() {
           </div>
         </section>
       </div>`;
+    mountStoredDatabasePanel("foodkeys", "فودکیز");
     document.querySelector("#foodkeys-form")
       .addEventListener("submit", saveFoodkeys);
     document.querySelectorAll("[data-history]").forEach((button) => {
@@ -1116,7 +1175,7 @@ async function renderFoodkeys() {
     loadFoodkeysExport();
     loadFoodkeysExportHistory();
   } catch (error) {
-    content.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+    showStoredDatabaseFallback("foodkeys", "فودکیز", error);
   }
 }
 
@@ -1431,6 +1490,7 @@ async function renderMarketplaceSource(sourceKey, displayName) {
           </div>
         </section>
       </div>`;
+    mountStoredDatabasePanel(sourceKey, displayName);
     document.querySelector(`#${sourceKey}-form`).addEventListener("submit", (event) =>
       saveMarketplaceSource(event, sourceKey, displayName));
     document.querySelectorAll("[data-history]").forEach((button) => {
@@ -1453,7 +1513,7 @@ async function renderMarketplaceSource(sourceKey, displayName) {
     loadMarketplaceExport(sourceKey, displayName);
     loadMarketplaceExportHistory(sourceKey);
   } catch (error) {
-    content.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+    showStoredDatabaseFallback(sourceKey, displayName, error);
   }
 }
 
@@ -2217,6 +2277,7 @@ function renderLocked(sourceKey) {
       </div>
     </section>
   `;
+  if (isTorob) mountStoredDatabasePanel("torob", "ترب");
 }
 
 async function switchView(view) {
