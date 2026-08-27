@@ -642,18 +642,21 @@ async function renderTakhfifan() {
   try {
     const source = await request("/sources/takhfifan");
     const monitorInputs = source.monitor_inputs || [];
+    const monitorHistory = source.monitor_input_history || monitorInputs;
     const exportInput = monitorInputs[0] || { keyword: "", category: "", subcategory: "" };
-    const monitorRows = monitorInputs.length
-      ? monitorInputs.map((item) => `
+    const monitorHistoryRows = monitorHistory.length
+      ? monitorHistory.map((item) => `
           <article class="history-item">
             <div class="history-item-head">
               <strong>${escapeHtml(item.keyword)}</strong>
-              <button class="button secondary" type="button"
-                data-remove-takhfifan-input="${item.id}">غیرفعال‌کردن</button>
+              ${item.enabled
+                ? `<button class="button secondary" type="button" data-remove-takhfifan-input="${item.id}">غیرفعال‌کردن</button>`
+                : `<span class="status-pill">غیرفعال</span>`}
             </div>
             <p>دسته: ${escapeHtml(item.category)} · زیردسته: ${escapeHtml(item.subcategory)}</p>
+            <small>ثبت: ${formatDate(item.created_at)}</small>
           </article>`).join("")
-      : `<div class="empty-state">هنوز ورودی پایشی ثبت نشده است.</div>`;
+      : `<div class="empty-state">تاریخچه‌ای وجود ندارد.</div>`;
     content.innerHTML = `
       <div class="behtarino-layout">
       <div class="two-column">
@@ -685,17 +688,15 @@ async function renderTakhfifan() {
               <p class="form-hint">کارت‌های قدیمی پیش از بازشدن با شناسه SQLite رد می‌شوند.</p>
             </div>
           </form>
-          <div class="history-list compact">${monitorRows}</div>
         </section>
         <section class="panel">
           <div class="panel-header">
-            <div><h2>تاریخچه</h2></div>
+            <div>
+              <h2>تاریخچه ورودی‌ها</h2>
+              <p>${formatNumber(monitorInputs.length)} فعال از ${formatNumber(monitorHistory.length)} ترکیب یکتا</p>
+            </div>
           </div>
-          <div class="tabs">
-            <button class="tab-button" data-history="runs">اجراها</button>
-            <button class="tab-button active" data-history="settings">تغییر ورودی‌ها</button>
-          </div>
-          <div id="history-list" class="history-list"></div>
+          <div class="history-list">${monitorHistoryRows}</div>
         </section>
       </div>
       <section class="panel export-panel">
@@ -743,16 +744,6 @@ async function renderTakhfifan() {
     document.querySelectorAll("[data-remove-takhfifan-input]").forEach((button) => {
       button.addEventListener("click", () => removeTakhfifanInput(button.dataset.removeTakhfifanInput));
     });
-    document.querySelectorAll("[data-history]").forEach((button) => {
-      button.addEventListener("click", () => {
-        document
-          .querySelectorAll("[data-history]")
-          .forEach((item) => item.classList.remove("active"));
-        button.classList.add("active");
-        loadHistory("takhfifan", button.dataset.history);
-      });
-    });
-    loadHistory("takhfifan", "settings");
     document.querySelector("#apply-takhfifan-export-filter")
       .addEventListener("click", loadTakhfifanExport);
     document.querySelector("#preview-takhfifan-export")
