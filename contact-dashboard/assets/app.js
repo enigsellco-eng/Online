@@ -641,44 +641,51 @@ async function renderTakhfifan() {
   content.innerHTML = `<div class="loading">در حال دریافت اطلاعات تخفیفان…</div>`;
   try {
     const source = await request("/sources/takhfifan");
-    const input = source.input || {
-      keyword: "",
-      city: "",
-      category: "",
-    };
+    const monitorInputs = source.monitor_inputs || [];
+    const exportInput = monitorInputs[0] || { keyword: "", category: "", subcategory: "" };
+    const monitorRows = monitorInputs.length
+      ? monitorInputs.map((item) => `
+          <article class="history-item">
+            <div class="history-item-head">
+              <strong>${escapeHtml(item.keyword)}</strong>
+              <button class="button secondary" type="button"
+                data-remove-takhfifan-input="${item.id}">غیرفعال‌کردن</button>
+            </div>
+            <p>دسته: ${escapeHtml(item.category)} · زیردسته: ${escapeHtml(item.subcategory)}</p>
+          </article>`).join("")
+      : `<div class="empty-state">هنوز ورودی پایشی ثبت نشده است.</div>`;
     content.innerHTML = `
       <div class="behtarino-layout">
       <div class="two-column">
         <section class="panel">
           <div class="panel-header">
-            <div><h2>ورودی‌های استخراج</h2></div>
+            <div>
+              <h2>ورودی‌های پایش دائمی</h2>
+              <p>${formatNumber(source.cities?.length || 0)} شهر به‌صورت خودکار بررسی می‌شوند.</p>
+            </div>
             <span class="status-pill">${statusLabel(source.status)}</span>
           </div>
           <form id="takhfifan-form">
             <div class="form-grid">
               <label>
                 Keyword
-                <input id="takhfifan-keyword" value="${escapeHtml(input.keyword)}"
-                  minlength="2" maxlength="120" required />
-              </label>
-              <label>
-                شهر
-                <input id="takhfifan-city" value="${escapeHtml(input.city)}"
-                  minlength="2" maxlength="80" required />
+                <input id="takhfifan-keyword" minlength="2" maxlength="120" required />
               </label>
               <label>
                 دسته‌بندی
-                <input id="takhfifan-category" value="${escapeHtml(input.category)}"
-                  minlength="2" maxlength="120" required />
+                <input id="takhfifan-category" minlength="1" maxlength="120" required />
+              </label>
+              <label>
+                زیردسته
+                <input id="takhfifan-subcategory" minlength="1" maxlength="160" required />
               </label>
             </div>
             <div class="form-actions">
-              <button class="button primary" type="submit">ذخیره ورودی‌ها</button>
-              <p class="form-hint">
-                آخرین تغییر: ${formatDate(input.updated_at)}
-              </p>
+              <button class="button primary" type="submit">افزودن به فهرست پایش</button>
+              <p class="form-hint">کارت‌های قدیمی پیش از بازشدن با شناسه SQLite رد می‌شوند.</p>
             </div>
           </form>
+          <div class="history-list compact">${monitorRows}</div>
         </section>
         <section class="panel">
           <div class="panel-header">
@@ -708,7 +715,7 @@ async function renderTakhfifan() {
         <div class="export-grid">
           <div class="export-controls">
             <div class="form-grid">
-              ${takhfifanFields("takhfifan-export", input)}
+              ${takhfifanFields("takhfifan-export", exportInput)}
               <label>از شماره<input id="takhfifan-export-from" type="number" min="1" value="1" /></label>
               <label>تا شماره<input id="takhfifan-export-to" type="number" min="1" value="1" /></label>
             </div>
@@ -733,6 +740,9 @@ async function renderTakhfifan() {
     document
       .querySelector("#takhfifan-form")
       .addEventListener("submit", saveTakhfifan);
+    document.querySelectorAll("[data-remove-takhfifan-input]").forEach((button) => {
+      button.addEventListener("click", () => removeTakhfifanInput(button.dataset.removeTakhfifanInput));
+    });
     document.querySelectorAll("[data-history]").forEach((button) => {
       button.addEventListener("click", () => {
         document
@@ -767,21 +777,13 @@ async function saveTakhfifan(event) {
     const data = await request("/sources/takhfifan/input", {
       method: "PUT",
       body: JSON.stringify({
-        keyword: document.querySelector("#takhfifan-keyword").value,
-        city: document.querySelector("#takhfifan-city").value,
-        category: document.querySelector("#takhfifan-category").value,
+        keyword: document.querySelector("#takhfifan-keyword").value.trim(),
+        category: document.querySelector("#takhfifan-category").value.trim(),
+        subcategory: document.querySelector("#takhfifan-subcategory").value.trim(),
       }),
     });
-    showToast("ورودی‌های تخفیفان با موفقیت ذخیره شدند.");
-    form.querySelector(".form-hint").textContent =
-      `آخرین تغییر: ${formatDate(data.input.updated_at)}`;
-    const saved = data.input || takhfifanValues("takhfifan");
-    ["keyword", "city", "category"].forEach((field) => {
-      const exportInput = document.querySelector(`#takhfifan-export-${field}`);
-      if (exportInput) exportInput.value = saved[field] || "";
-    });
-    await loadTakhfifanExport();
-    loadHistory("takhfifan", "settings");
+    showToast("ورودی جدید به چرخه پایش تخفیفان اضافه شد.");
+    await renderTakhfifan();
   } catch (error) {
     showToast(error.message, true);
   } finally {
@@ -789,18 +791,28 @@ async function saveTakhfifan(event) {
   }
 }
 
+async function removeTakhfifanInput(jobId) {
+  try {
+    await request(`/sources/takhfifan/inputs/${jobId}`, { method: "DELETE" });
+    showToast("ورودی از چرخه پایش غیرفعال شد.");
+    await renderTakhfifan();
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
 function takhfifanFields(prefix, input) {
   return `
     <label>Keyword<input id="${prefix}-keyword" value="${escapeHtml(input.keyword)}" minlength="2" maxlength="120" required /></label>
-    <label>شهر<input id="${prefix}-city" value="${escapeHtml(input.city)}" minlength="2" maxlength="80" required /></label>
-    <label>دسته‌بندی<input id="${prefix}-category" value="${escapeHtml(input.category)}" minlength="2" maxlength="120" required /></label>`;
+    <label>دسته‌بندی<input id="${prefix}-category" value="${escapeHtml(input.category)}" minlength="2" maxlength="120" required /></label>
+    <label>زیردسته<input id="${prefix}-subcategory" value="${escapeHtml(input.subcategory || "")}" minlength="1" maxlength="160" required /></label>`;
 }
 
 function takhfifanValues(prefix) {
   return {
     keyword: document.querySelector(`#${prefix}-keyword`).value.trim(),
-    city: document.querySelector(`#${prefix}-city`).value.trim(),
     category: document.querySelector(`#${prefix}-category`).value.trim(),
+    subcategory: document.querySelector(`#${prefix}-subcategory`).value.trim(),
   };
 }
 
