@@ -294,6 +294,21 @@ input:disabled {
   box-shadow: inset -3px 0 var(--gold);
 }
 
+.nav-item.nav-subitem {
+  width: calc(100% - 18px);
+  min-height: 40px;
+  margin-right: 18px;
+  padding-right: 10px;
+  color: #91aaa2;
+  font-size: 12px;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px 0 0 8px;
+}
+
+.nav-item.nav-subitem.active {
+  color: white;
+}
+
 .nav-icon,
 .source-badge {
   width: 27px;
