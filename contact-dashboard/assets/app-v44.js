@@ -1808,7 +1808,6 @@ async function renderTelegramGroups() {
   try {
     const data = await request("/sources/telegram/groups");
     const sources = data.sources || [];
-    const members = (data.members || []).slice(0, 500);
     const visibleTotal = sources.reduce((sum, item) => sum + Number(item.visible_members || 0), 0);
     const usernameTotal = sources.reduce((sum, item) => sum + Number(item.usernames || 0), 0);
     const phoneTotal = sources.reduce((sum, item) => sum + Number(item.phones || 0), 0);
@@ -1845,12 +1844,6 @@ async function renderTelegramGroups() {
           <div class="panel-header"><div><h2>منابع تلگرامی</h2><p>وضعیت مستقل هر گروه و آخرین اجرای استخراج</p></div><span class="status-pill">${formatNumber(sources.length)} گروه</span></div>
           <div class="telegram-table-wrap"><table class="telegram-table"><thead><tr><th>گروه</th><th>دسته</th><th>شناسه</th><th>اعضا</th><th>یوزرنیم</th><th>شماره</th><th>آخرین اسکن</th><th>وضعیت</th></tr></thead><tbody>
             ${sources.length ? sources.map((item) => `<tr><td>${escapeHtml(item.title || item.source_key)}</td><td>${item.category === "wholesaler" ? "عمده‌فروش" : "سوپرمارکت"}</td><td dir="ltr">@${escapeHtml(item.username)}</td><td>${formatNumber(item.visible_members || 0)}</td><td>${formatNumber(item.usernames || 0)}</td><td>${formatNumber(item.phones || 0)}</td><td>${formatDate(item.last_scan_at)}</td><td>${item.last_error ? `<span class="status-pill error" title="${escapeHtml(item.last_error)}">خطا</span>` : item.scan_requested_at ? `<span class="status-pill">در صف</span>` : `<span class="status-pill">فعال</span>`}</td></tr>`).join("") : `<tr><td colspan="8">هنوز گروهی ثبت نشده است.</td></tr>`}
-          </tbody></table></div>
-        </section>
-        <section class="panel">
-          <div class="panel-header"><div><h2>اعضای استخراج‌شده</h2><p>نمایش ۵۰۰ عضویت اخیر؛ خروجی دانلودی شامل تمام رکوردهاست.</p></div><span class="status-pill">${formatNumber(members.length)} ردیف</span></div>
-          <div class="telegram-table-wrap"><table class="telegram-table"><thead><tr><th>گروه</th><th>User ID</th><th>Username</th><th>شماره قابل‌نمایش</th><th>نام عمومی</th><th>آخرین مشاهده</th></tr></thead><tbody>
-            ${members.length ? members.map((row) => `<tr><td>${escapeHtml(row.title || row.source_key)}</td><td>${escapeHtml(row.telegram_user_id)}</td><td>${escapeHtml(row.username ? `@${row.username}` : "—")}</td><td>${escapeHtml(row.phone || "—")}</td><td>${escapeHtml(row.public_name || "—")}</td><td>${formatDate(row.last_seen_at)}</td></tr>`).join("") : `<tr><td colspan="6">هنوز عضوی استخراج نشده است.</td></tr>`}
           </tbody></table></div>
         </section>
       </div>`;
