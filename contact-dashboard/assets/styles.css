@@ -346,6 +346,11 @@ input:disabled {
   color: #fff;
 }
 
+.source-badge.naderi {
+  background: #174f42;
+  color: #fff;
+}
+
 .source-badge.foodkeys {
   background: #d97706;
   color: #fff;

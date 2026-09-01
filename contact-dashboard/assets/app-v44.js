@@ -97,19 +97,16 @@ async function downloadAllContacts(sourceKey) {
   const button = document.querySelector(`#download-all-${sourceKey}`);
   if (button) button.disabled = true;
   try {
-    const blob = await downloadRequest(
-      `/sources/${sourceKey}/drive/xlsx`,
-      {},
-    );
+    const blob = await downloadRequest(`/sources/${sourceKey}/exports/all/xlsx`, {});
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `${sourceKey}-stored-database.xlsx`;
+    anchor.download = `${sourceKey}-all-contacts.xlsx`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
-    showToast("دیتابیس Excel ذخیره‌شده دانلود شد.");
+    showToast("همه داده‌های دیتابیس در قالب Excel دانلود شد.");
   } catch (error) {
     showToast(error.message, true);
   } finally {
@@ -138,18 +135,43 @@ async function downloadStoredDatabase(sourceKey) {
   }
 }
 
+async function downloadCompleteDatabase(sourceKey) {
+  const button = document.querySelector(`#download-complete-${sourceKey}`);
+  if (button) button.disabled = true;
+  try {
+    const blob = await downloadRequest(`/sources/${sourceKey}/exports/all/xlsx`, {});
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${sourceKey}-all-contacts.xlsx`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    showToast("همه داده‌های دیتابیس در قالب Excel دانلود شد.");
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 function storedDatabasePanel(sourceKey, displayName) {
   return `
     <section class="panel stored-database-panel">
       <div class="panel-header">
         <div>
-          <h2>دانلود فایل ذخیره‌شده ${escapeHtml(displayName)}</h2>
+          <h2>دانلود همه داده‌های ${escapeHtml(displayName)}</h2>
+          <p>خروجی کامل دیتابیس یا نسخه همگام‌شده Google Sheet را دریافت کنید.</p>
         </div>
         <span class="status-pill">فایل ذخیره‌شده</span>
       </div>
       <div class="form-actions">
+        <button id="download-complete-${sourceKey}" class="button primary" type="button">
+          دانلود همه داده‌های دیتابیس (Excel)
+        </button>
         <button id="download-drive-${sourceKey}" class="button primary" type="button">
-          دانلود دیتابیس Excel
+          دانلود نسخه Google Sheet (Excel)
         </button>
       </div>
     </section>`;
@@ -159,6 +181,8 @@ function mountStoredDatabasePanel(sourceKey, displayName) {
   const wrapper = document.createElement("div");
   wrapper.innerHTML = storedDatabasePanel(sourceKey, displayName);
   content.appendChild(wrapper.firstElementChild);
+  document.querySelector(`#download-complete-${sourceKey}`)
+    ?.addEventListener("click", () => downloadCompleteDatabase(sourceKey));
   document.querySelector(`#download-drive-${sourceKey}`)
     ?.addEventListener("click", () => downloadStoredDatabase(sourceKey));
 }
@@ -167,6 +191,8 @@ function showStoredDatabaseFallback(sourceKey, displayName, error) {
   content.innerHTML = `
     <div class="empty">اطلاعات زنده ${escapeHtml(displayName)} در دسترس نیست: ${escapeHtml(error.message)}</div>
     ${storedDatabasePanel(sourceKey, displayName)}`;
+  document.querySelector(`#download-complete-${sourceKey}`)
+    ?.addEventListener("click", () => downloadCompleteDatabase(sourceKey));
   document.querySelector(`#download-drive-${sourceKey}`)
     ?.addEventListener("click", () => downloadStoredDatabase(sourceKey));
 }
@@ -1062,6 +1088,48 @@ async function renderSenfyab() {
 
 async function renderOmdbox() {
   return renderClassifiedSource("omdbox", "عمده‌باکس", false);
+}
+
+async function renderNaderi() {
+  setHeader("", "مراکز پخش نادری", "استخراج صفحه‌به‌صفحه اطلاعات مراکز داخلی");
+  content.innerHTML = `<div class="loading">در حال دریافت اطلاعات نادری…</div>`;
+  try {
+    const source = await request("/sources/naderi");
+    content.innerHTML = `
+      <section class="metrics-grid">
+        <article class="metric"><span>مراکز ذخیره‌شده</span><strong>${formatNumber(source.records || 0)}</strong></article>
+        <article class="metric"><span>کانتکت‌ها</span><strong>${formatNumber(source.contacts || 0)}</strong></article>
+        <article class="metric"><span>وضعیت</span><strong>${escapeHtml(statusLabel(source.status))}</strong></article>
+        <article class="metric"><span>آخرین اجرا</span><strong style="font-size:18px">${formatDate(source.last_run?.started_at)}</strong></article>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><div><h2>جمع‌آوری خودکار</h2><p class="muted">naderi.co.ir/internal — ۴۱ مرکز در ۷ صفحه</p></div>
+          <button class="button primary" id="naderi-run">شروع استخراج</button>
+        </div>
+        <p>عنوان مرکز، استان، شماره‌های تماس مجزا و آدرس در دیتابیس و Google Sheet اختصاصی نادری ذخیره می‌شود.</p>
+        <p><a href="https://docs.google.com/spreadsheets/d/1Hws6QBwHusTTHYbtNRhK94-57Z5j5Mj4yjyz6S4XP04/edit" target="_blank" rel="noreferrer">بازکردن Google Sheet نادری</a></p>
+      </section>
+      <section class="panel"><div class="panel-head"><h2>اجرای اخیر</h2></div>
+        <div class="history-list">${(source.recent_runs || []).map(item => historyItem(item, "runs", "naderi")).join("") || '<div class="empty">هنوز اجرایی ثبت نشده است.</div>'}</div>
+      </section>`;
+    mountStoredDatabasePanel("naderi", "نادری");
+    document.querySelector("#naderi-run").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      button.textContent = "در حال ثبت اجرا…";
+      try {
+        await request("/sources/naderi/run", { method: "POST" });
+        showToast("استخراج نادری در صف اجرا قرار گرفت.");
+        await renderNaderi();
+      } catch (error) {
+        showToast(error.message, true);
+        button.disabled = false;
+        button.textContent = "شروع استخراج";
+      }
+    });
+  } catch (error) {
+    showStoredDatabaseFallback("naderi", "نادری", error);
+  }
 }
 
 
@@ -2393,6 +2461,7 @@ async function switchView(view) {
   if (view === "takhfifan") return renderTakhfifan();
   if (view === "senfyab") return renderSenfyab();
   if (view === "omdbox") return renderOmdbox();
+  if (view === "naderi") return renderNaderi();
   if (view === "foodkeys") return renderFoodkeys();
   if (view === "divar") return renderDivar();
   if (view === "sheypoor") return renderSheypoor();
