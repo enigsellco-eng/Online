@@ -658,8 +658,145 @@ async function renderBehtarino() {
   return renderDirectorySource("behtarino", "بهترینو");
 }
 
+async function saveAvvalInput(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type='submit']");
+  button.disabled = true;
+  try {
+    const data = await request("/sources/avval/input", {
+      method: "PUT",
+      body: JSON.stringify({
+        keyword: document.querySelector("#avval-keyword").value,
+      }),
+    });
+    showToast("Keyword کتاب اول برای بررسی همهٔ شهرها ذخیره شد.");
+    form.querySelector("#avval-updated-at").textContent =
+      `آخرین تغییر: ${formatDate(data.input.updated_at)}`;
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function renderAvval() {
-  return renderDirectorySource("avval", "کتاب اول");
+  setHeader("", "کتاب اول", "");
+  content.innerHTML = `<div class="loading">در حال دریافت اطلاعات کتاب اول…</div>`;
+  try {
+    const source = await request("/sources/avval");
+    const input = source.input || { keyword: "" };
+    content.innerHTML = `
+      <div class="avval-layout">
+      <div class="two-column">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>ورودی استخراج</h2>
+              <p>Keyword به‌صورت خودکار در تمام ۴۱۲ شهر کتاب اول و با فیلتر موبایل بررسی می‌شود.</p>
+            </div>
+            <span class="status-pill">${statusLabel(source.status)}</span>
+          </div>
+          <form id="avval-input-form">
+            <div class="form-grid">
+              <label>
+                Keyword
+                <input id="avval-keyword" value="${escapeHtml(input.keyword)}"
+                  minlength="2" maxlength="120" required />
+              </label>
+            </div>
+            <div class="form-actions">
+              <button class="button primary" type="submit">ذخیره Keyword</button>
+              <p id="avval-updated-at" class="form-hint">
+                آخرین تغییر: ${formatDate(input.updated_at)}
+              </p>
+            </div>
+          </form>
+        </section>
+        <section class="panel">
+          <div class="panel-header"><div><h2>تاریخچه کتاب اول</h2></div></div>
+          <div class="tabs">
+            <button class="tab-button" data-avval-history="runs">اجراها</button>
+            <button class="tab-button active" data-avval-history="settings">تغییر Keyword</button>
+          </div>
+          <div id="history-list" class="history-list"></div>
+        </section>
+      </div>
+      <section class="panel export-panel">
+        <div class="panel-header">
+          <div>
+            <h2>خروجی Excel کتاب اول</h2>
+            <p>شهر این بخش فقط فیلتر خروجی است و محدودهٔ استخراج را تغییر نمی‌دهد.</p>
+          </div>
+          <span id="export-new-badge" class="status-pill">در حال بررسی…</span>
+        </div>
+        <div id="export-metrics" class="export-metrics">
+          <div><span>آخرین کانتکت</span><strong>—</strong></div>
+          <div><span>آخرین تحویل این فیلتر</span><strong>—</strong></div>
+          <div><span>شروع پیشنهادی</span><strong>—</strong></div>
+          <div><span>کانتکت جدید</span><strong>—</strong></div>
+        </div>
+        <div class="export-grid">
+          <div class="export-controls">
+            <div class="form-grid">
+              <label>
+                Keyword خروجی
+                <input id="export-keyword" value="${escapeHtml(input.keyword)}"
+                  minlength="2" maxlength="120" required />
+              </label>
+              <label>
+                شهر خروجی
+                <input id="export-city" value="" minlength="2" maxlength="80" required />
+              </label>
+              <label>
+                از شماره
+                <input id="export-from" type="number" min="1" value="1" />
+              </label>
+              <label>
+                تا شماره
+                <input id="export-to" type="number" min="1" value="1" />
+              </label>
+            </div>
+            <div class="form-actions export-actions">
+              <button id="apply-export-filter" class="button secondary" type="button">اعمال فیلتر</button>
+              <button id="preview-export" class="button secondary" type="button">دانلود آزمایشی</button>
+              <button id="confirm-export" class="button primary" type="button">دانلود و ثبت تحویل</button>
+              <button id="download-all-avval" class="button secondary" type="button">دانلود دیتابیس Excel</button>
+            </div>
+          </div>
+          <div>
+            <h3 class="export-history-title">تاریخچه تحویل کتاب اول</h3>
+            <div id="export-history" class="history-list compact">
+              <div class="loading">در حال دریافت تاریخچه…</div>
+            </div>
+          </div>
+        </div>
+      </section>
+      </div>
+    `;
+    mountStoredDatabasePanel("avval", "کتاب اول");
+    document.querySelector("#avval-input-form").addEventListener("submit", saveAvvalInput);
+    document.querySelectorAll("[data-avval-history]").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll("[data-avval-history]")
+          .forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        loadHistory("avval", button.dataset.avvalHistory);
+      });
+    });
+    loadHistory("avval", "settings");
+    document.querySelector("#apply-export-filter")
+      .addEventListener("click", () => loadDirectoryExport("avval"));
+    document.querySelector("#preview-export")
+      .addEventListener("click", () => downloadDirectoryExport("avval", "کتاب اول", false));
+    document.querySelector("#confirm-export")
+      .addEventListener("click", () => downloadDirectoryExport("avval", "کتاب اول", true));
+    document.querySelector("#download-all-avval")
+      .addEventListener("click", () => downloadAllContacts("avval"));
+    loadDirectoryExportHistory("avval");
+  } catch (error) {
+    showStoredDatabaseFallback("avval", "کتاب اول", error);
+  }
 }
 
 async function renderTakhfifan() {

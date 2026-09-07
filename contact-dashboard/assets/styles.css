@@ -819,6 +819,11 @@ input:disabled {
   gap: 20px;
 }
 
+.avval-layout {
+  display: grid;
+  gap: 20px;
+}
+
 .export-panel {
   width: 100%;
 }
