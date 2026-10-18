@@ -1,0 +1,30 @@
+// Cutover configuration: same Worker, routes and vars as wrangler.jsonc, but bound to the
+// enigsell-leads D1 in the dedicated Enigsell Cloudflare account (db786732d03f96cf157b5c6f55de167c).
+// Deploy only at cutover, after enigsell.com is active there:
+//   CLOUDFLARE_ACCOUNT_ID=db786732d03f96cf157b5c6f55de167c npx wrangler deploy --config wrangler.cutover.jsonc
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "enigsell-contact",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-01",
+  "observability": { "enabled": true },
+  "workers_dev": false,
+  "routes": [
+    { "pattern": "form.enigsell.com", "custom_domain": true }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "enigsell-leads",
+      "database_id": "401c0286-7e8e-457e-84c3-b58b8e69832e"
+    }
+  ],
+  "vars": {
+    "ALLOWED_ORIGIN": "https://enigsell.com",
+    // Channel «Enigsell Webform». Not a secret — it identifies the chat but
+    // grants nothing without the bot token.
+    "TELEGRAM_CHAT_ID": "-1004302971541"
+  }
+  // Secrets (NOT here — set with `wrangler secret put`):
+  //   TELEGRAM_BOT_TOKEN
+}
